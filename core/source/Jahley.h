@@ -20,24 +20,3 @@ inline String getResourcePath (const String& appName)
     String pathToRepro = exefullPath.upToFirstOccurrenceOf (REPOSITORY_NAME, true, false);
     return pathToRepro + "/resources/" + appName;
 }
-
-inline String getPtxFolder (const String& appName)
-{
-    // by default compiled PTX files are put in the intermeditate object folder
-    File exe = File::getSpecialLocation (File::SpecialLocationType::currentExecutableFile);
-    String exefullPath = exe.getFullPathName();
-
-    String pathToPtx = exefullPath.upToFirstOccurrenceOf ("builds", true, false);
-    pathToPtx = pathToPtx + "/bin-int/";
-
-    String configuration;
-#ifdef NDEBUG
-    configuration = "Release-windows-x86_64/";
-#else
-    configuration = "Debug-windows-x86_64/";
-#endif
-
-    pathToPtx = pathToPtx + configuration + appName;
-
-    return pathToPtx;
-}

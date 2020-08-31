@@ -26,9 +26,8 @@ class Application : public Jahley::App
         std::string commonFolder = getResourcePath ("Common").toStdString();
         properties.renderProps->setValue (RenderKey::CommonFolder, commonFolder);
 
-        // store the PTX folder,PTX files live in the bin-int folder by default
-        std::string ptxFolder = getPtxFolder (APP_NAME).toStdString();
-        properties.renderProps->setValue (RenderKey::PtxFolder, ptxFolder);
+        // ptx files are stored in the resource folder
+        properties.renderProps->setValue (RenderKey::PtxFolder, resourceFolder);
 
         // create the default camera
         camera = PerspectiveCam::create();
