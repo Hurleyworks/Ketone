@@ -80,6 +80,16 @@ CUDA_DEVICE_KERNEL void RT_RG_NAME (pathTracing)()
     float3 origin = plp.camera.position;
     float3 direction = normalize (plp.camera.orientation * make_float3 (vw * (0.5f - x), vh * (0.5f - y), 1));
 
+    if (plp.pickingEnabled)
+    {
+        printf("############################################\n");
+        printf("Pick origin\n %f %f %f\n",
+            origin.x, origin.y, origin.z);
+        printf("Pick direction\n %f %f %f\n",
+            direction.x, direction.y, direction.z);
+        printf("############################################\n");
+    }
+
     SearchRayPayload payload;
     payload.alpha = make_float3 (1.0f, 1.0f, 1.0f);
     payload.contribution = make_float3 (0.0f, 0.0f, 0.0f);
