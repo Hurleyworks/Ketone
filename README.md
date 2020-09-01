@@ -6,6 +6,7 @@ https://github.com/shocker-0x15/OptiX7_Utility
 <ul> 
   <li>CUDA 11.0 Update 1 </li>
   <li>OptiX 7.1.0 (requires Maxwell or later generation NVIDIA GPU) </li>
+  <li>Windows 10 (1909) & Visual Studio 2019 (16.7.2)</li>
 </ul>
 
 ### Installing
