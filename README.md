@@ -22,6 +22,15 @@ https://github.com/shocker-0x15/OptiX7_Utility
   <li>Denosing support</li>
 </ul>
 
+### Usage
+<ul> 
+  <li>A few meshes ( mostly by William Vaughn  http://pushingpoints.com/v2/ ) can be added from the gui or you can drag and drop files or folders of gltf2.0 files into the window. Currently there is no material supprt.
+ </li>
+  <li>Use LMB for camera trackball and RMB for mesh picking</li>
+  <li>To make a clump of instances, first load 1 object and select it by picking. Then press the MeshOps->Clump of Instances button</li>
+</ul>
+
+
 ![screen grab 1](
 https://github.com/Hurleyworks/Ketone/blob/master/resources/ActiveKetone/screen_grab_1.png)
 
