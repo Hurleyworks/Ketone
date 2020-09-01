@@ -17,7 +17,7 @@ https://github.com/shocker-0x15/OptiX7_Utility
 </ul>
 
 ![screen grab 1](
-https://github.com/Hurleyworks/Ketone/blob/master/resources/ActiveKetone/screen_grab_1.png
+https://github.com/Hurleyworks/Ketone/blob/master/resources/ActiveKetone/screen_grab_1.png)
 
 ![screen grab 2](
-https://github.com/Hurleyworks/Ketone/blob/master/resources/ActiveKetone/screen_grab_2.png
+https://github.com/Hurleyworks/Ketone/blob/master/resources/ActiveKetone/screen_grab_2.png)
