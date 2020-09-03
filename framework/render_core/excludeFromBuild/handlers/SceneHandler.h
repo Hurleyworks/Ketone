@@ -44,7 +44,6 @@ class SceneHandler
     MotionHandler motion;
 
     // SBT
-    cudau::Buffer* curHitGroupSBT;
     size_t hitGroupSbtSize;
     bool hitGroupSbtLayoutUpdated = true;
 

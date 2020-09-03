@@ -18,8 +18,7 @@ PipelineHandler::~PipelineHandler()
         pipeline.destroy();
         optixContext.destroy();
 
-        CUDADRV_CHECK (cuStreamDestroy (cuStream[1]));
-        CUDADRV_CHECK (cuStreamDestroy (cuStream[0]));
+        CUDADRV_CHECK (cuStreamDestroy (cuStream));
         CUDADRV_CHECK (cuCtxDestroy (cuContext));
     }
     catch (std::exception& e)
@@ -38,8 +37,8 @@ void PipelineHandler::initialize()
     CUDADRV_CHECK (cuDeviceGetCount (&cuDeviceCount));
     CUDADRV_CHECK (cuCtxCreate (&cuContext, 0, 0));
     CUDADRV_CHECK (cuCtxSetCurrent (cuContext));
-    CUDADRV_CHECK (cuStreamCreate (&cuStream[0], 0));
-    CUDADRV_CHECK (cuStreamCreate (&cuStream[1], 0));
+    CUDADRV_CHECK (cuStreamCreate (&cuStream, 0));
+   
 
     optixContext = optixu::Context::create (cuContext);
 }

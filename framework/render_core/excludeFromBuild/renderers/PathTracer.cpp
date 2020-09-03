@@ -15,7 +15,7 @@ PathTracer::~PathTracer()
 {
     try
     {
-        CUDADRV_CHECK (cuStreamSynchronize (state->engine.getStream (frameIndex % 2)));
+        CUDADRV_CHECK (cuStreamSynchronize (state->engine.stream()));
         CUDADRV_CHECK (cuMemFree (plpOnDevice));
     }
     catch (std::exception& e)
@@ -37,12 +37,8 @@ float PathTracer::render (CameraHandle& camera, InputEventRef& input, uint32_t f
     plp.travHandle = state->groups.size() ? state->groups[0]->optixIAS.getHandle() : 0;
     plp.lightGeomInstIndex = state->areaLightIndex;
 
-    CUstream& curCuStream = state->engine.getStream (state->bufferIndex);
-    CUstream& prevCuStream = state->engine.getStream ((state->bufferIndex + 1) % 2);
-
-    // EN: Wait the previous processing which uses the same stream to finish.
-    CUDADRV_CHECK (cuStreamSynchronize (curCuStream));
-
+    CUstream& curCuStream = state->engine.stream();
+  
     if (plp.pickingEnabled)
         pick (input, curCuStream);
 
@@ -56,6 +52,7 @@ float PathTracer::render (CameraHandle& camera, InputEventRef& input, uint32_t f
         CUDADRV_CHECK (cuMemcpyHtoDAsync (plpOnDevice, &plp, sizeof (plp), curCuStream));
         state->engine.pl().launch (curCuStream, plpOnDevice, renderWidth, renderHeight, 1);
     }
+    CUDADRV_CHECK(cuStreamSynchronize(curCuStream));
     curGPUTimer.render.stop (curCuStream);
     denoiser.update (curCuStream, renderWidth, renderHeight);
 
@@ -187,7 +184,7 @@ void PathTracer::initializeLaunchParameters (CameraHandle& camera)
     plp.pickingFragment = make_float2 (-1.0f, -1.0f);
 
     state->engine.pl().setScene (state->scene);
-    state->engine.pl().setHitGroupShaderBindingTable (&state->hitGroupSBT[state->sbtIndex]);
+    state->engine.pl().setHitGroupShaderBindingTable (&state->hitGroupSBT);
 
     updateCamera (camera);
 

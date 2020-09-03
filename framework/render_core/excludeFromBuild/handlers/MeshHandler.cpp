@@ -93,7 +93,7 @@ InstanceRef MeshHandler::createInstance (RenderableNode& node)
 {
     bool isInstance = node->isInstance();
 
-    CUstream& curCuStream = state->engine.getStream (state->bufferIndex);
+    CUstream& curCuStream = state->engine.stream();
 
     const SpaceTime& st = node->getSpaceTime();
     const Vector3f& pos = st.worldTransform.translation();
@@ -160,7 +160,7 @@ InstanceRef MeshHandler::createInstance (RenderableNode& node)
 
 uint32_t MeshHandler::createGeometryGroup (GeometryInstanceRef& geomInst, uint32_t materialSetCount)
 {
-    CUstream& curCuStream = state->engine.getStream (state->bufferIndex);
+    CUstream& curCuStream = state->engine.stream();
 
     uint32_t serialID = state->gasSerialID++;
 

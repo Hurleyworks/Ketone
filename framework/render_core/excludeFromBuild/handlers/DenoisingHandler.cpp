@@ -59,7 +59,7 @@ void DenoisingHandler::initialize (MoojiStateRef& state, uint32_t renderWidth, u
     // It is possible to reuse the scratch buffer for denoising for computeIntensity() if its size is enough.
     denoiser.setLayers (&linearColorBuffer, &linearAlbedoBuffer, &linearNormalBuffer, &linearOutputBuffer,
                         OPTIX_PIXEL_FORMAT_FLOAT4, OPTIX_PIXEL_FORMAT_FLOAT4, OPTIX_PIXEL_FORMAT_FLOAT4);
-    denoiser.setupState (state->engine.getStream (state->bufferIndex), denoiserStateBuffer, denoiserScratchBuffer);
+    denoiser.setupState (state->engine.stream(), denoiserStateBuffer, denoiserScratchBuffer);
 
     dimCopyBuffers = kernelCopyBuffers.calcGridDim (renderWidth, renderHeight);
 

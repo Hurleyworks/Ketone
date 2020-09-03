@@ -20,11 +20,7 @@ class PipelineHandler
     const optixu::ProgramGroup& getShadingHitGroup() const { return shadingHitProgramGroup; }
     const optixu::ProgramGroup& getVisiblityHitGroup() const { return visibilityHitProgramGroup; }
     RenderMode getPipelineType() const { return pipelineType; }
-    CUstream& getStream (uint32_t bufferIndex)
-    {
-        jassert (bufferIndex >= 0 && bufferIndex < 2);
-        return cuStream[bufferIndex];
-    }
+    CUstream& stream() { return cuStream; }
 
     uint32_t getSearchRayType()
     {
@@ -71,7 +67,7 @@ class PipelineHandler
  private:
     CUcontext cuContext;
     int32_t cuDeviceCount;
-    CUstream cuStream[2];
+    CUstream cuStream;
     bool motionBlur = false;
     optixu::Context optixContext;
     optixu::Pipeline pipeline;

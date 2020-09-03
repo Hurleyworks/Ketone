@@ -162,10 +162,8 @@ struct OptiXEnv
     std::map<uint32_t, GroupRef> groups;
 
     cudau::Buffer asScratchBuffer;
-
-    cudau::Buffer hitGroupSBT[2];
-    uint32_t sbtIndex = 0;
-
+    cudau::Buffer hitGroupSBT;
+  
     WeakRenderableMap weakNodes;
     SelectedMap selected;
     SelectedMap deselected;

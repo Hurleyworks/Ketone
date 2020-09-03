@@ -43,7 +43,7 @@ void MotionHandler::createMotionKeys (RenderableNode& node, InstanceRef& inst)
 
     tr.deviceMem = new cudau::Buffer;
     tr.deviceMem->initialize (state->engine.cuCtx(), cudau::BufferType::Device, trMemSize, 1);
-    tr.optixTransform.rebuild (state->engine.getStream (state->bufferIndex), *tr.deviceMem);
+    tr.optixTransform.rebuild (state->engine.stream(), *tr.deviceMem);
     transformsObject.push_back (tr);
 
     inst->optixInst.setChild (tr.optixTransform);
@@ -162,7 +162,7 @@ void MotionHandler::updateMotionAABBs()
         for (int keyIdx = 0; keyIdx < tr.srts.size(); ++keyIdx)
             tr.optixTransform.setMatrixMotionKey (keyIdx, reinterpret_cast<float*> (&tr.srts[keyIdx].transform));
 
-        tr.optixTransform.rebuild (state->engine.getStream (state->bufferIndex), *tr.deviceMem);
+        tr.optixTransform.rebuild (state->engine.stream(), *tr.deviceMem);
 
         Vector3f min = st.modelBound.min();
         Vector3f max = st.modelBound.max();
