@@ -1,6 +1,6 @@
 #pragma once
 
-using sabi::InputEventRef;
+using sabi::InputEvent;
 
 struct init
 {
@@ -40,12 +40,12 @@ struct tick
 
 struct onInput
 {
-    onInput (const InputEventRef& input) :
+    onInput (const InputEvent& input) :
         input (input)
     {
     }
 
     // must be responsive to user input!
     QmsID id = QmsID::TopPriority;
-    InputEventRef input;
+    InputEvent input;
 };

@@ -106,10 +106,10 @@ class Application : public Jahley::App
         camera->setDirty (true);
     }
 
-    void onInput (InputEventRef& input) override
+    void onInput (InputEvent input) override
     {
         // no need to process move moves is there?
-        if (input->getType() == InputEvent::Move) return;
+        if (input.getType() == InputEvent::Move) return;
 
         controller.onInput (input, camera);
 

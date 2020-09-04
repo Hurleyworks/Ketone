@@ -81,13 +81,13 @@ void RenderCore::render (CameraHandle& camera, uint32_t frameNumber)
     properties.renderProps->setValue (RenderKey::RenderTime, static_cast<double> (renderTime * 0.001f));
 }
 
-void RenderCore::onInput (InputEventRef& input)
+void RenderCore::onInput (InputEvent& input)
 {
-    if (!this->input) this->input = input;
+    this->input = input;
 
     // If we're in Camera mode, picking is enabled with RMB press or drag
-    if (input->getButton() == InputEvent::Right && (input->getType() == InputEvent::Press || input->getType() == InputEvent::Drag))
+    if (input.getButton() == InputEvent::Right && (input.getType() == InputEvent::Press || input.getType() == InputEvent::Drag))
     {
-        renderer->generatePickRay (input->getX(), input->getY());
+        renderer->generatePickRay (input.getX(), input.getY());
     }
 }

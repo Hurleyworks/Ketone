@@ -28,7 +28,7 @@ PathTracer::~PathTracer()
     }
 }
 
-float PathTracer::render (CameraHandle& camera, InputEventRef& input, uint32_t frameNumber, bool reset)
+float PathTracer::render (CameraHandle& camera, InputEvent& input, uint32_t frameNumber, bool reset)
 {
     if (reset) frameIndex = 0;
 
@@ -94,7 +94,7 @@ void PathTracer::updateCamera (CameraHandle& camera)
     plp.camera.orientation = Matrix3x3 (camRight  * -1.0f, camUp, camForward);
 }
 
-void PathTracer::pick (InputEventRef& input, CUstream& cuStream)
+void PathTracer::pick (InputEvent& input, CUstream& cuStream)
 {
     CUDADRV_CHECK (cuMemcpyHtoDAsync (plpOnDevice, &plp, sizeof (plp), cuStream));
     state->engine.pl().launch (cuStream, plpOnDevice, 1, 1, 1);
@@ -135,7 +135,7 @@ void PathTracer::pick (InputEventRef& input, CUstream& cuStream)
     pickData->intanceID = ~0;
     pickData->primitiveID = ~0;
 
-    if (input && inst->node)
+    if (inst->node)
     {
         // toggle selection state
         if (inst->node->getState().isSelected())
@@ -162,7 +162,7 @@ void PathTracer::pick (InputEventRef& input, CUstream& cuStream)
             state->selected.insert (std::make_pair (inst, inst->node));
         }
 
-        input->setPickedNode (inst->node);
+        input.setPickedNode (inst->node);
     }
 }
 

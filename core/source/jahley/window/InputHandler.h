@@ -7,13 +7,12 @@
 
 #include "../AppConfig.h"
 
-using sabi::InputEventRef;
 using sabi::InputEvent;
 
 class InputHandler : public CsSignal::SignalBase
 {
  public:
-    SIGNAL_1 (void onEvent (InputEventRef& input))
+    SIGNAL_1 (void onEvent (InputEvent input))
     SIGNAL_2 (onEvent, input)
 
     SIGNAL_1 (void onDragAndDrop (const std::vector<std::string>& paths))
@@ -25,7 +24,7 @@ class InputHandler : public CsSignal::SignalBase
  public:
     InputHandler() 
     {
-        input = std::make_shared<InputEvent>();
+  
     }
     ~InputHandler() = default;
 
@@ -36,7 +35,7 @@ class InputHandler : public CsSignal::SignalBase
     {
         // LOG (DBUG) << "Codepoint: " << codepoint;
 
-        // input->setKey (codepoint);
+        // input.setKey (codepoint);
 
         // emit the event
         // onEvent (input);
@@ -62,26 +61,27 @@ class InputHandler : public CsSignal::SignalBase
                 break;
         }
 
-        input->setKey (key);
-        input->setScanCode (scanCode);
-        input->setType (type);
-        input->setKeyboardModifiers (mods);
+        input.setKey (key);
+        input.setScanCode (scanCode);
+        input.setType (type);
+        input.setKeyboardModifiers (mods);
         onEvent (input);
     }
 
     void onCursorPos (double xPos, double yPos)
     {
-        input->setX (xPos);
-        input->setY (yPos);
+        input.setX (xPos);
+        input.setY (yPos);
 
-        InputEvent::Type type = input->getType();
+        InputEvent::Type type = input.getType();
         if (type == InputEvent::Type::Press || type == InputEvent::Drag)
         {
-            input->setType (InputEvent::Drag);
+            input.setType (InputEvent::Drag);
         }
         else
         {
-            input->setType (InputEvent::Move);
+           // LOG(DBUG) << "MOVING ";
+            input.setType (InputEvent::Move);
         }
 
         // emit the event
@@ -93,13 +93,13 @@ class InputHandler : public CsSignal::SignalBase
         switch (button)
         {
             case MOUSE_BUTTON_LEFT:
-                input->setButton (InputEvent::MouseButton::Left);
+                input.setButton (InputEvent::MouseButton::Left);
                 break;
             case MOUSE_BUTTON_RIGHT:
-                input->setButton (InputEvent::MouseButton::Right);
+                input.setButton (InputEvent::MouseButton::Right);
                 break;
             case MOUSE_BUTTON_MIDDLE:
-                input->setButton (InputEvent::MouseButton::Middle);
+                input.setButton (InputEvent::MouseButton::Middle);
                 break;
             default:
                 break;
@@ -108,13 +108,13 @@ class InputHandler : public CsSignal::SignalBase
         switch (action)
         {
             case MOUSE_PRESS:
-                input->setType (InputEvent::Press);
+                input.setType (InputEvent::Press);
                 break;
             case MOUSE_RELEASE:
-                input->setType (InputEvent::Release);
+                input.setType (InputEvent::Release);
                 break;
             case MOUSE_REPEAT:
-                input->setType (InputEvent::DblClick); // FIXME is this correct?
+                input.setType (InputEvent::DblClick); // FIXME is this correct?
                 break;
             default:
                 break;
@@ -132,7 +132,7 @@ class InputHandler : public CsSignal::SignalBase
 
     void onScroll (double xOffset, double yOffset)
     {
-        input->setType (yOffset > 0.0 ? InputEvent::ScrollUp : InputEvent::ScrollDown);
+        input.setType (yOffset > 0.0 ? InputEvent::ScrollUp : InputEvent::ScrollDown);
 
         // emit the event
         onEvent (input);
@@ -144,7 +144,7 @@ class InputHandler : public CsSignal::SignalBase
     }
 
  private:
-    InputEventRef input = nullptr;
+     InputEvent input;
     bool windowOpen = true;
     uint32_t lastChar = 0;
 };

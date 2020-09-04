@@ -17,7 +17,7 @@ class RenderCore
     void tick (size_t frameNumber) {}
 	void initEngine (CameraHandle& camera);
     void render (CameraHandle& camera, uint32_t frameNumber);
-    void onInput (InputEventRef& input);
+    void onInput (InputEvent& input);
     void addRenderableNode (RenderableNode& node)
     {
         InstanceRef inst = mesh->addRenderableNode (node);
@@ -28,7 +28,7 @@ class RenderCore
  private:
 	MessageService messengers;
 	PropertyService properties;
-    InputEventRef input = nullptr;
+    InputEvent input;
 
     size_t lastSelectedCount = 0;
     std::string ptxFolder = INVALID_PATH;

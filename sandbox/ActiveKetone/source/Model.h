@@ -6,7 +6,7 @@ using Eigen::Vector2f;
 using Eigen::Vector3f;
 using juce::String;
 using sabi::CameraHandle;
-using sabi::InputEventRef;
+using sabi::InputEvent;
 using sabi::PixelBufferHandle;
 using sabi::RenderableDesc;
 
@@ -41,7 +41,7 @@ class Model : public CsSignal::SlotBase, public CsSignal::SignalBase
         framework.render.getMessenger().send (QMS::renderNextFrame (camera, hackFrameNumber++));
     }
 
-    void onInput (const InputEventRef& input)
+    void onInput (const InputEvent& input)
     {
         framework.render.getMessenger().send (QMS::onInput (input));
     }

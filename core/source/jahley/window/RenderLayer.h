@@ -10,7 +10,6 @@
 
 using RenderLayerRef = std::shared_ptr<class RenderLayer>;
 using sabi::CameraHandle;
-using sabi::InputEventRef;
 using sabi::InputEvent;
 
 //class InputEvent;
@@ -23,7 +22,7 @@ class RenderLayer
 	~RenderLayer ();
 
 	virtual void onUpdate() = 0;
-    virtual bool onInput (const InputEventRef& input) = 0;
+    virtual bool onInput (const InputEvent& input) = 0;
 	virtual LayerType getType() const = 0;
 
 	virtual void onAttach() {}

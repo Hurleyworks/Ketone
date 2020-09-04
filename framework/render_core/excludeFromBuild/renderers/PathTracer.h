@@ -35,7 +35,7 @@ class PathTracer : public IRenderer
     }
     void updateCamera (CameraHandle& camera) override;
 
-    float render (CameraHandle& camera, InputEventRef& input, uint32_t frameNumber, bool reset) override;
+    float render (CameraHandle& camera, InputEvent& input, uint32_t frameNumber, bool reset) override;
 
  private:
     DenoisingHandler denoiser;
@@ -45,6 +45,6 @@ class PathTracer : public IRenderer
 
     void initializeLaunchParameters (CameraHandle& camera);
     void resize (CameraHandle& camera);
-    void pick (InputEventRef& input, CUstream& cuStream);
+    void pick (InputEvent& input, CUstream& cuStream);
 
 }; // end class PathTracer

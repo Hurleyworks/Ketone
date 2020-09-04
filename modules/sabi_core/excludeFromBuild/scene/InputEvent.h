@@ -6,8 +6,6 @@
 
 using wabi::Ray3f;
 
-using InputEventRef = std::shared_ptr<class InputEvent>;
-
 class InputEvent
 {
  public:

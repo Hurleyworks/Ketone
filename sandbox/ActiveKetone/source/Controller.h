@@ -9,7 +9,6 @@
 using Eigen::Vector2f;
 using sabi::CameraHandle;
 using sabi::InputEvent;
-using sabi::InputEventRef;
 
 class Controller : public CsSignal::SignalBase
 {
@@ -27,7 +26,7 @@ class Controller : public CsSignal::SignalBase
     Controller (const PropertyService& properties);
     ~Controller() = default;
 
-    void onInput (InputEventRef& input, CameraHandle& camera);
+    void onInput (InputEvent& input, CameraHandle& camera);
 
  private:
     PropertyService properties;

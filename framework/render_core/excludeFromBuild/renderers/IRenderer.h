@@ -5,7 +5,7 @@
 #pragma once
 
 using MoojiRendererRef = std::shared_ptr<class IRenderer>;
-using sabi::InputEventRef;
+using sabi::InputEvent;
 
 class IRenderer
 {
@@ -29,7 +29,7 @@ class IRenderer
     virtual void generatePickRay (float x, float y) {}
     virtual void updateCamera (CameraHandle& camera) = 0;
     virtual void onResize (CameraHandle& camera) = 0;
-    virtual float render (CameraHandle& camera, InputEventRef& input, uint32_t frameNumber, bool reset = false) = 0;
+    virtual float render (CameraHandle& camera, InputEvent& input, uint32_t frameNumber, bool reset = false) = 0;
     virtual void initializeLaunchParameters (CameraHandle& camera) = 0;
 
  protected:

@@ -14,29 +14,29 @@ Controller::Controller (const PropertyService& properties) :
 {
 }
 
-void Controller::onInput (InputEventRef& input, CameraHandle& camera)
+void Controller::onInput (InputEvent& input, CameraHandle& camera)
 {
-    input->setPicking (false);
+    input.setPicking (false);
 
-    mouseCoords = Vector2f (input->getX(), input->getY());
+    mouseCoords = Vector2f (input.getX(), input.getY());
     const int winx = static_cast<int> (mouseCoords.x());
     const int winy = static_cast<int> (mouseCoords.y());
     float zoomFactor = DEFAULT_ZOOM_FACTOR;
 
     // shift key to increase Zoom factor
-    if (input->getKeyboardModifiers() & InputEvent::Shift)
+    if (input.getKeyboardModifiers() & InputEvent::Shift)
     {
         zoomFactor *= 10.0f;
     }
 
-    switch (input->getType())
+    switch (input.getType())
     {
         case InputEvent::Press:
         {
-            if (input->getButton() == InputEvent::Left)
+            if (input.getButton() == InputEvent::Left)
             {
                 camera->startTracking();
-                camera->track (Vector2f (input->getX(), input->getY()));
+                camera->track (Vector2f (input.getX(), input.getY()));
             }
             break;
         }
@@ -63,12 +63,12 @@ void Controller::onInput (InputEventRef& input, CameraHandle& camera)
         case InputEvent::Drag:
 
             // LB for camera, RMB for picking
-            if (input->getButton() == InputEvent::Left)
+            if (input.getButton() == InputEvent::Left)
             {
-                camera->track (Vector2f (input->getX(), input->getY()));
+                camera->track (Vector2f (input.getX(), input.getY()));
                 camera->setDirty (true);
             }
-            else if (input->getButton() == InputEvent::Right)
+            else if (input.getButton() == InputEvent::Right)
             {
             }
 
@@ -77,7 +77,7 @@ void Controller::onInput (InputEventRef& input, CameraHandle& camera)
         case InputEvent::KeyPress:
         {
             // d key to deselect all
-            if (input->getKey() == 68)
+            if (input.getKey() == 68)
             {
                 camera->setDirty (true);
                 emitDeselectAll();

@@ -17,7 +17,7 @@ class OptixLayer : public RenderLayer
 	void onDetach() override;
 
 	void onUpdate() override;
-	bool onInput(const InputEventRef& input) override;
+	bool onInput(const InputEvent& input) override;
 
 	LayerType getType() const override { return LayerType::Optix; }
 

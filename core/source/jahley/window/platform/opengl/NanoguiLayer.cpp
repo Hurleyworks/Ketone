@@ -37,45 +37,45 @@ void NanoguiLayer::onUpdate()
     drawWidgets();
 }
 
-bool NanoguiLayer::onInput (const InputEventRef& input)
+bool NanoguiLayer::onInput (const InputEvent& input)
 {
-    switch (input->getType())
+    switch (input.getType())
     {
         case InputEvent::Press:
             //LOG(DBUG) << "PRESS";
-            return Screen::mouseButtonCallbackEvent (input->getButton(), MOUSE_PRESS, 0);
+            return Screen::mouseButtonCallbackEvent (input.getButton(), MOUSE_PRESS, 0);
 
             break;
 
         case InputEvent::Release:
             //LOG(DBUG) << "RELEASE";
-            return Screen::mouseButtonCallbackEvent (input->getButton(), MOUSE_RELEASE, 0);
+            return Screen::mouseButtonCallbackEvent (input.getButton(), MOUSE_RELEASE, 0);
 
         case InputEvent::Move:
             //LOG(DBUG) << "MOVE";
-            return Screen::cursorPosCallbackEvent ((float)input->getX(), (float)input->getY());
+            return Screen::cursorPosCallbackEvent ((float)input.getX(), (float)input.getY());
 
         case InputEvent::Drag:
             //LOG(DBUG) << "DRAG";
-            Screen::cursorPosCallbackEvent ((float)input->getX(), (float)input->getY());
+            Screen::cursorPosCallbackEvent ((float)input.getX(), (float)input.getY());
 
             // calling just the cursorPosCallbackEvent() was the cause of the gui event mess
             // we need to call mouseButtonCallbackEvent() during drags too
-            return Screen::mouseButtonCallbackEvent (input->getButton(), MOUSE_PRESS, 0);
+            return Screen::mouseButtonCallbackEvent (input.getButton(), MOUSE_PRESS, 0);
 
 
         case InputEvent::KeyPress:
         {
-            if (Screen::keyboardEvent (input->getKey(), input->getScanCode(), MOUSE_PRESS, input->getKeyboardModifiers()))
+            if (Screen::keyboardEvent (input.getKey(), input.getScanCode(), MOUSE_PRESS, input.getKeyboardModifiers()))
             {
-                return Screen::keyboardCharacterEvent (input->getKey());
+                return Screen::keyboardCharacterEvent (input.getKey());
             }
             else
                 return false;
         }
         case InputEvent::KeyRelease:
         {
-            return Screen::keyboardEvent (input->getKey(), input->getScanCode(), MOUSE_RELEASE, input->getKeyboardModifiers());
+            return Screen::keyboardEvent (input.getKey(), input.getScanCode(), MOUSE_RELEASE, input.getKeyboardModifiers());
         }
     }
 

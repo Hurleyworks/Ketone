@@ -6,7 +6,7 @@
 
 using sabi::CameraHandle;
 using sabi::RenderableWeakRef;
-using sabi::InputEventRef;
+using sabi::InputEvent;
 
 class RenderCore; // forward decl for impl
 
@@ -36,7 +36,7 @@ class ActiveRender
     uint32_t frameNumber = 0;
     CameraHandle camera = nullptr;
     RenderableWeakRef weakNode;
-    InputEventRef input = nullptr;
+    InputEvent input;
 
     // state functions
     std::thread stateThread;

@@ -32,7 +32,7 @@ void OptixLayer::onUpdate()
 	
 }
 
-bool OptixLayer::onInput(const InputEventRef& input)
+bool OptixLayer::onInput(const InputEvent& input)
 {
 	return false;
 }

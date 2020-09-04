@@ -99,7 +99,7 @@ namespace Jahley
             layer->onAttach();
     }
 
-    void App::onInputEvent (InputEventRef& input)
+    void App::onInputEvent (InputEvent input)
     {
         for (RenderLayerRef layer : layers)
         {

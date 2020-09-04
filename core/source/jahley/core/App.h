@@ -25,7 +25,7 @@ namespace Jahley
         virtual void onRender() {}
         virtual void onInit() {}
         virtual void onCrash() {}
-        virtual void onInput (InputEventRef& input) {}
+        virtual void onInput (InputEvent input) {}
         virtual void onDrop (const std::vector<std::string>& fileList) {}
         virtual void onWindowResize (int newWidth, int newHeight) {}
 
@@ -36,7 +36,7 @@ namespace Jahley
         void pushOverlay (RenderLayerRef layer, bool attach);
 
         // slot
-        void onInputEvent (InputEventRef& input);
+        void onInputEvent (InputEvent input);
 
         // crash handling
         void preCrash();
