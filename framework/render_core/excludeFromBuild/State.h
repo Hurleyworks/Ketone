@@ -255,7 +255,7 @@ struct GPUTimer
     }
 };
 
-inline void getWorldTransform (MatrixRowMajor34f& t, sabi::Affine3f& xform, Vector3f& scale)
+inline void getWorldTransform (MatrixRowMajor34f& t, Eigen::Affine3f& xform, Vector3f& scale)
 {
     // apply the scale to the basis vectors
     // of the orientation just like LW
