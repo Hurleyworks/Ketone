@@ -7,191 +7,183 @@
 // dtor
 SceneHandler::~SceneHandler()
 {
-    topGroup.reset();
+	topGroup.reset();
 
-    state->groups.clear();
-    state->insts.clear();
-    state->geomGroups.clear();
-    state->geomInsts.clear();
+	state->groups.clear();
+	state->insts.clear();
+	state->geomGroups.clear();
+	state->geomInsts.clear();
 
-    state->asScratchBuffer.finalize();
-    state->hitGroupSBT.finalize();
+	state->asScratchBuffer.finalize();
+	state->hitGroupSBT.finalize();
 
-    state->gasSlotFinder.finalize();
-    state->gasDataBuffer.finalize();
-    state->materialDataBuffer.finalize();
-    state->geometryInstSlotFinder.finalize();
-    state->geometryDataBuffer.finalize();
-    state->pickDataBuffer.finalize();
-    state->scene.destroy();
+	state->gasSlotFinder.finalize();
+	state->gasDataBuffer.finalize();
+	state->materialDataBuffer.finalize();
+	state->geometryInstSlotFinder.finalize();
+	state->geometryDataBuffer.finalize();
+	state->pickDataBuffer.finalize();
+	state->scene.destroy();
 }
 
-void SceneHandler::initialize (MoojiStateRef& state)
+void SceneHandler::initialize(MoojiStateRef& state)
 {
-    this->state = state;
-    motion.initialize (state);
+	this->state = state;
+	motion.initialize(state);
 
-    state->materialDataBuffer.initialize (state->cuContext, g_bufferType, MaxNumGeometryInstances);
-    updateState();
+	state->materialDataBuffer.initialize(state->cuContext, g_bufferType, MaxNumGeometryInstances);
+	updateState();
 }
 
-void SceneHandler::addInstance (RenderableNode& node, InstanceRef& inst)
+void SceneHandler::addInstance(RenderableNode& node, InstanceRef& inst)
 {
-    bool motionBlurEnabled = state->engine.usingMotionBlur();
-    if (motionBlurEnabled)
-        motion.createMotionKeys (node, inst);
+	bool motionBlurEnabled = state->engine.usingMotionBlur();
+	if (motionBlurEnabled)
+		motion.createMotionKeys(node, inst);
 
-    if (!topGroup)
-        createTopGroup (motionBlurEnabled);
+	if (!topGroup)
+		createTopGroup(motionBlurEnabled);
 
-    topGroup->insts.push_back (inst);
-    topGroup->optixIAS.addChild (inst->optixInst);
-    inst->parentGroups.insert (topGroup);
-    traversablesUpdated = true;
+	topGroup->insts.push_back(inst);
+	topGroup->optixIAS.addChild(inst->optixInst);
+	inst->parentGroups.insert(topGroup);
+	traversablesUpdated = true;
 
-    hitGroupSbtLayoutUpdated = true;
-    updateState();
+	hitGroupSbtLayoutUpdated = true;
+	updateState();
 }
 
-void SceneHandler::createTopGroup (bool motionBlurEnabled)
+void SceneHandler::createTopGroup(bool motionBlurEnabled)
 {
-    uint32_t serialID = state->iasSerialID++;
-    topGroup = make_shared_with_deleter<Group> (Group::finalize);
-    topGroup->optixEnv = state.get();
-    char name[256];
-    sprintf_s (name, "IAS-%u", serialID);
-    topGroup->serialID = serialID;
-    topGroup->name = name;
-    topGroup->optixIAS = state->scene.createInstanceAccelerationStructure();
-    if (motionBlurEnabled)
-    {
-        topGroup->optixIAS.setConfiguration (optixu::ASTradeoff::PreferFastTrace, false, false);
-        topGroup->optixIAS.setMotionOptions (motion.getKeyCount(), 0.0f, 1.0f, OPTIX_MOTION_FLAG_NONE);
-    }
-    else
-        topGroup->optixIAS.setConfiguration (optixu::ASTradeoff::PreferFastTrace, true, false);
+	uint32_t serialID = state->iasSerialID++;
+	topGroup = make_shared_with_deleter<Group>(Group::finalize);
+	topGroup->optixEnv = state.get();
+	char name[256];
+	sprintf_s(name, "IAS-%u", serialID);
+	topGroup->serialID = serialID;
+	topGroup->name = name;
+	topGroup->optixIAS = state->scene.createInstanceAccelerationStructure();
+	if (motionBlurEnabled)
+	{
+		topGroup->optixIAS.setConfiguration(optixu::ASTradeoff::PreferFastTrace, false, false);
+		topGroup->optixIAS.setMotionOptions(motion.getKeyCount(), 0.0f, 1.0f, OPTIX_MOTION_FLAG_NONE);
+	}
+	else
+		topGroup->optixIAS.setConfiguration(optixu::ASTradeoff::PreferFastTrace, true, false);
 
-    state->groups[serialID] = topGroup;
+	state->groups[serialID] = topGroup;
 }
 
-void SceneHandler::updateState (bool rebuildIAS)
+void SceneHandler::updateState(bool rebuildIAS)
 {
-    LOG (DBUG) << _FN_;
+	LOG(DBUG) << _FN_;
 
-    bool motionBlur = state->engine.usingMotionBlur();
+	bool motionBlur = state->engine.usingMotionBlur();
 
-    for (const auto& kv : state->geomGroups)
-    {
-        const GeometryGroupRef& geomGroup = kv.second;
-        if (geomGroup->optixGAS.isReady())
-            continue;
+	for (const auto& kv : state->geomGroups)
+	{
+		const GeometryGroupRef& geomGroup = kv.second;
+		if (geomGroup->optixGAS.isReady())
+			continue;
 
-        rebuildGAS (geomGroup, state->engine.stream());
-    }
+		rebuildGAS(geomGroup, state->engine.stream());
+	}
 
-    if (hitGroupSbtLayoutUpdated)
-    {
-        
+	if (hitGroupSbtLayoutUpdated)
+	{
+		state->scene.generateShaderBindingTableLayout(&hitGroupSbtSize);
+		if (state->hitGroupSBT.isInitialized())
+			state->hitGroupSBT.resize(hitGroupSbtSize, 1, state->engine.stream());
+		else
+			state->hitGroupSBT.initialize(state->cuContext, g_bufferType, hitGroupSbtSize, 1);
+		state->engine.pl().setHitGroupShaderBindingTable(&state->hitGroupSBT);
+		hitGroupSbtLayoutUpdated = false;
+	}
 
-        state->scene.generateShaderBindingTableLayout (&hitGroupSbtSize);
-        if (state->hitGroupSBT.isInitialized())
-            state->hitGroupSBT.resize (hitGroupSbtSize, 1, state->engine.stream());
-        else
-            state->hitGroupSBT.initialize (state->cuContext, g_bufferType, hitGroupSbtSize, 1);
-        state->engine.pl().setHitGroupShaderBindingTable (&state->hitGroupSBT);
-        hitGroupSbtLayoutUpdated = false;
-    }
+	for (const auto& kv : state->groups)
+	{
+		const GroupRef& group = kv.second;
+		if (group->optixIAS.isReady())
+			continue;
 
-    for (const auto& kv : state->groups)
-    {
-        const GroupRef& group = kv.second;
-        if (group->optixIAS.isReady())
-            continue;
+		OptixAccelBufferSizes bufferSizes;
+		uint32_t numInstances = 0;
+		uint32_t numAABBs = 0;
+		if (motionBlur)
+		{
+			group->optixIAS.prepareForBuild(&bufferSizes, &numInstances, &numAABBs);
+		}
+		else
+			group->optixIAS.prepareForBuild(&bufferSizes, &numInstances);
 
-        OptixAccelBufferSizes bufferSizes;
-        uint32_t numInstances = 0;
-        uint32_t numAABBs = 0;
-        if (motionBlur)
-        {
-            group->optixIAS.prepareForBuild (&bufferSizes, &numInstances, &numAABBs);
-        }
-        else
-            group->optixIAS.prepareForBuild (&bufferSizes, &numInstances);
+		if (bufferSizes.tempSizeInBytes >= state->asScratchBuffer.sizeInBytes())
+			state->asScratchBuffer.resize(bufferSizes.tempSizeInBytes, 1, state->engine.stream());
 
-        if (bufferSizes.tempSizeInBytes >= state->asScratchBuffer.sizeInBytes())
-            state->asScratchBuffer.resize (bufferSizes.tempSizeInBytes, 1, state->engine.stream());
-
-        if (group->optixIasMem.isInitialized())
-        {
-            group->optixIasMem.resize (bufferSizes.outputSizeInBytes, 1, state->engine.stream());
-            group->optixInstanceBuffer.resize (numInstances);
-            if (motionBlur)
-                group->aabbBuffer.resize (numAABBs);
-        }
-        else
-        {
-            group->optixIasMem.initialize (state->cuContext, g_bufferType, bufferSizes.outputSizeInBytes, 1);
-            group->optixInstanceBuffer.initialize (state->cuContext, g_bufferType, numInstances);
-            if (motionBlur)
-                group->aabbBuffer.initialize (state->cuContext, g_bufferType, numAABBs);
-        }
-        if (rebuildIAS)
-        {
-            if (motionBlur)
-            {
-                motion.updateMotionAABBs();
-                motion.computeMotionAABBs();
-                group->optixIAS.rebuild (state->engine.stream(), group->optixInstanceBuffer, group->aabbBuffer, group->optixIasMem, state->asScratchBuffer);
-            }
-            else
-                group->optixIAS.rebuild (state->engine.stream(), group->optixInstanceBuffer, group->optixIasMem, state->asScratchBuffer);
-        }
-    }
+		if (group->optixIasMem.isInitialized())
+		{
+			group->optixIasMem.resize(bufferSizes.outputSizeInBytes, 1, state->engine.stream());
+			group->optixInstanceBuffer.resize(numInstances);
+			if (motionBlur)
+				group->aabbBuffer.resize(numAABBs);
+		}
+		else
+		{
+			group->optixIasMem.initialize(state->cuContext, g_bufferType, bufferSizes.outputSizeInBytes, 1);
+			group->optixInstanceBuffer.initialize(state->cuContext, g_bufferType, numInstances);
+			if (motionBlur)
+				group->aabbBuffer.initialize(state->cuContext, g_bufferType, numAABBs);
+		}
+		if (rebuildIAS)
+		{
+			if (motionBlur)
+			{
+				motion.updateMotionAABBs();
+				motion.computeMotionAABBs();
+				group->optixIAS.rebuild(state->engine.stream(), group->optixInstanceBuffer, group->aabbBuffer, group->optixIasMem, state->asScratchBuffer);
+			}
+			else
+				group->optixIAS.rebuild(state->engine.stream(), group->optixInstanceBuffer, group->optixIasMem, state->asScratchBuffer);
+		}
+	}
 }
 
-void SceneHandler::clearScene (bool clearRenderables)
+void SceneHandler::clearScene(bool clearRenderables)
 {
-    CUstream& curCuStream = state->engine.stream();
+	state->reset(clearRenderables);
 
-    state->reset (clearRenderables);
+	topGroup.reset();
+	topGroup = nullptr;
 
-    topGroup.reset();
-    topGroup = nullptr;
-
-    traversablesUpdated = true;
+	traversablesUpdated = true;
 }
 
-void SceneHandler::rebuildGAS (const GeometryGroupRef& geomGroup, CUstream& curCuStream)
+void SceneHandler::rebuildGAS(const GeometryGroupRef& geomGroup, CUstream& curCuStream)
 {
-    CUstream& prevCuStream = state->engine.stream();
+	OptixAccelBufferSizes bufferSizes;
+	geomGroup->optixGAS.prepareForBuild(&bufferSizes);
+	if (bufferSizes.tempSizeInBytes >= state->asScratchBuffer.sizeInBytes())
+		state->asScratchBuffer.resize(bufferSizes.tempSizeInBytes, 1, curCuStream);
 
-    jassert (prevCuStream != curCuStream);
+	LOG(INFO) << "AS Size: " << bufferSizes.outputSizeInBytes << " bytes";
+	LOG(DBUG) << "Scratch Size: " << bufferSizes.tempSizeInBytes << " bytes";
 
-    OptixAccelBufferSizes bufferSizes;
-    geomGroup->optixGAS.prepareForBuild (&bufferSizes);
-    if (bufferSizes.tempSizeInBytes >= state->asScratchBuffer.sizeInBytes())
-        state->asScratchBuffer.resize (bufferSizes.tempSizeInBytes, 1, curCuStream);
-
-    hpprintf ("AS Size: %llu bytes\n", bufferSizes.outputSizeInBytes);
-    hpprintf ("Scratch Size: %llu bytes\n", bufferSizes.tempSizeInBytes);
-
-    //https://github.com/shocker-0x15/OptiX7_Utility
-    // EN: It is dangerous to reallocate AS memory during the GPU is using it,
-    //     so wait the completion of use.
-    //     You need to prepare a completely separated buffer and switch the current with it
-    //     if you don't want to interfere CPU/GPU asynchronous execution.
-    if (geomGroup->optixGasMem.isInitialized())
-    {
-        if (bufferSizes.outputSizeInBytes > geomGroup->optixGasMem.sizeInBytes())
-        {
-            CUDADRV_CHECK (cuStreamSynchronize (prevCuStream));
-            geomGroup->optixGasMem.resize (bufferSizes.outputSizeInBytes, 1, curCuStream);
-        }
-    }
-    else
-    {
-        CUDADRV_CHECK (cuStreamSynchronize (prevCuStream));
-        geomGroup->optixGasMem.initialize (state->cuContext, g_bufferType, bufferSizes.outputSizeInBytes, 1);
-    }
-    geomGroup->optixGAS.rebuild (curCuStream, geomGroup->optixGasMem, state->asScratchBuffer);
+	//https://github.com/shocker-0x15/OptiX7_Utility
+	// EN: It is dangerous to reallocate AS memory during the GPU is using it,
+	//     so wait the completion of use.
+	//     You need to prepare a completely separated buffer and switch the current with it
+	//     if you don't want to interfere CPU/GPU asynchronous execution.
+	if (geomGroup->optixGasMem.isInitialized())
+	{
+		if (bufferSizes.outputSizeInBytes > geomGroup->optixGasMem.sizeInBytes())
+		{
+			CUDADRV_CHECK(cuStreamSynchronize(curCuStream));
+			geomGroup->optixGasMem.resize(bufferSizes.outputSizeInBytes, 1, curCuStream);
+		}
+	}
+	else
+	{
+		CUDADRV_CHECK(cuStreamSynchronize(curCuStream));
+		geomGroup->optixGasMem.initialize(state->cuContext, g_bufferType, bufferSizes.outputSizeInBytes, 1);
+	}
+	geomGroup->optixGAS.rebuild(curCuStream, geomGroup->optixGasMem, state->asScratchBuffer);
 }
