@@ -39,6 +39,10 @@ void WorldOps::createInstanceClump (int instanceCount)
 
     bool randomScale = properties.worldProps->getVal<bool> (WorldKey::RandomInstanceScale);
 
+    // there's already 1 placed object so increment the 
+    // counter so we don't place one on top of it
+    loadStrategy->incrementCount();
+
     for (int i = 0; i < instanceCount; ++i)
     {
         RenderableNode instance = selectedNode->createInstance();
@@ -49,7 +53,7 @@ void WorldOps::createInstanceClump (int instanceCount)
         if (randomScale)
         {
             // FIXME should be user defined randomness
-            auto scale = RandoM::get<RandoM::common> (2.0, 0.5f);
+            auto scale = RandoM::get<RandoM::common> (1.5, 0.5f);
             for ( int i = 0; i < 3; i++)
                 instance->getSpaceTime().scale[i] = scale;
         }
