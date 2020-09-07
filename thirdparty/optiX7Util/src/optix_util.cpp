@@ -111,7 +111,7 @@ namespace optixu {
         THROW_RUNTIME_ERROR(sbt->sizeInBytes() >= singleRecordSize * numSBTRecords,
                             "Hit group shader binding table size is not enough.");
 
-        auto records = sbt->map<uint8_t>(stream);
+        auto records = sbt->map<uint8_t>(stream, BufferMapFlag::WriteOnlyDiscard);
 
         for (_GeometryAccelerationStructure* gas : geomASs) {
             uint32_t numMatSets = gas->getNumMaterialSets();
@@ -665,7 +665,7 @@ namespace optixu {
         m->available = false;
     }
 
-    OptixTraversableHandle GeometryAccelerationStructure::update(CUstream stream, const Buffer &scratchBuffer) const {
+    void GeometryAccelerationStructure::update(CUstream stream, const Buffer &scratchBuffer) const {
         bool updateEnabled = (m->buildOptions.buildFlags & OPTIX_BUILD_FLAG_ALLOW_UPDATE) != 0;
         THROW_RUNTIME_ERROR(updateEnabled, "This AS does not allow update.");
         THROW_RUNTIME_ERROR(m->available || m->compactedAvailable, "AS has not been built yet.");
@@ -677,17 +677,17 @@ namespace optixu {
             child.geomInst->updateBuildInput(&m->buildInputs[childIdx++], child.preTransform);
 
         const Buffer* accelBuffer = m->compactedAvailable ? m->compactedAccelBuffer : m->accelBuffer;
-        OptixTraversableHandle &handle = m->compactedAvailable ? m->compactedHandle : m->handle;
+        OptixTraversableHandle handle = m->compactedAvailable ? m->compactedHandle : m->handle;
 
         m->buildOptions.operation = OPTIX_BUILD_OPERATION_UPDATE;
+        OptixTraversableHandle tempHandle = handle;
         OPTIX_CHECK(optixAccelBuild(m->getRawContext(), stream,
                                     &m->buildOptions, m->buildInputs.data(), m->buildInputs.size(),
                                     scratchBuffer.getCUdeviceptr(), scratchBuffer.sizeInBytes(),
                                     accelBuffer->getCUdeviceptr(), accelBuffer->sizeInBytes(),
-                                    &handle,
+                                    &tempHandle,
                                     nullptr, 0));
-
-        return handle;
+        optixAssert(tempHandle == handle, "Update should not change the handle itself, what's going on?");
     }
 
     void GeometryAccelerationStructure::setUserData(const void* data, uint32_t size, uint32_t alignment) const {
@@ -1287,7 +1287,7 @@ namespace optixu {
         m->available = false;
     }
 
-    OptixTraversableHandle InstanceAccelerationStructure::update(CUstream stream, const Buffer &scratchBuffer) const {
+    void InstanceAccelerationStructure::update(CUstream stream, const Buffer &scratchBuffer) const {
         bool updateEnabled = (m->buildOptions.buildFlags & OPTIX_BUILD_FLAG_ALLOW_UPDATE) != 0;
         THROW_RUNTIME_ERROR(updateEnabled, "This AS does not allow update.");
         THROW_RUNTIME_ERROR(m->available || m->compactedAvailable, "AS has not been built yet.");
@@ -1302,17 +1302,17 @@ namespace optixu {
                                         stream));
 
         const Buffer* accelBuffer = m->compactedAvailable ? m->compactedAccelBuffer : m->accelBuffer;
-        OptixTraversableHandle &handle = m->compactedAvailable ? m->compactedHandle : m->handle;
+        OptixTraversableHandle handle = m->compactedAvailable ? m->compactedHandle : m->handle;
 
         m->buildOptions.operation = OPTIX_BUILD_OPERATION_UPDATE;
+        OptixTraversableHandle tempHandle = handle;
         OPTIX_CHECK(optixAccelBuild(m->getRawContext(), stream,
                                     &m->buildOptions, &m->buildInput, 1,
                                     scratchBuffer.getCUdeviceptr(), scratchBuffer.sizeInBytes(),
                                     accelBuffer->getCUdeviceptr(), accelBuffer->sizeInBytes(),
-                                    &handle,
+                                    &tempHandle,
                                     nullptr, 0));
-
-        return handle;
+        optixAssert(tempHandle == handle, "Update should not change the handle itself, what's going on?");
     }
 
     bool InstanceAccelerationStructure::isReady() const {
@@ -1350,7 +1350,7 @@ namespace optixu {
             for (int i = 0; i < numCallablePrograms; ++i)
                 THROW_RUNTIME_ERROR(callablePrograms[i], "Callable program is not set for index %d.", i);
 
-            auto records = sbt->map<uint8_t>(stream);
+            auto records = sbt->map<uint8_t>(stream, BufferMapFlag::WriteOnlyDiscard);
             size_t offset = 0;
 
             size_t rayGenRecordOffset = offset;

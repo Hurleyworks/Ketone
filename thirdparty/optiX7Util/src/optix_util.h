@@ -27,15 +27,22 @@ EN: It is very likely for now that any API will have breaking changes.
 TODO:
 - Linux環境でのテスト。
 - setPayloads/getPayloadsなどで引数側が必要以上の引数を渡していてもエラーが出ない問題。
+- 複数のASをCompactionを使いつつメモリ上に詰めて配置する場合にcudau::Bufferを分割して使う仕組みが必要になる。
+- ASのRelocationサポート。
 - BuildInputのどの内容がアップデート時に変更できるのか確認。
 - Curve Primitiveサポート。
 - Deformation Blurサポート。
-- HitGroup以外のProgramGroupにユーザーデータを持たせる。
 - 途中で各オブジェクトのパラメターを変更した際の処理。
   パイプラインのセットアップ順などが現状は暗黙的に固定されている。これを自由な順番で変えられるようにする。
+- Multi GPUs?
 - Assertとexceptionの整理。
+
+検討事項:
+- HitGroup以外のProgramGroupにユーザーデータを持たせる。
 - GAS/IASに関してユーザーが気にするところはAS云々ではなくグループ化なので
   名前を変えるべき？GeometryGroup/InstanceGroupのような感じ。
+- ユーザーがあるSBTレコード中の各データのストライドを意識せずともそれぞれのオフセットを取得する関数。
+- GAS中のGeometryInstanceのインデックスを取得できるようにする。
 
 */
 
@@ -89,6 +96,7 @@ TODO:
 namespace optixu {
 #if !defined(__CUDA_ARCH__)
     using cudau::BufferType;
+    using cudau::BufferMapFlag;
     using cudau::Buffer;
     using cudau::TypedBuffer;
 #endif
@@ -410,7 +418,7 @@ namespace optixu {
     namespace detail {
         template <typename HeadType0, typename... TailTypes>
         CUDA_DEVICE_FUNCTION constexpr size_t _calcSumDwords() {
-            uint32_t ret = sizeof(HeadType0) / 4;
+            uint32_t ret = sizeof(HeadType0) / sizeof(uint32_t);
             if constexpr (sizeof...(TailTypes) > 0)
                 ret += _calcSumDwords<TailTypes...>();
             return ret;
@@ -426,7 +434,9 @@ namespace optixu {
 
         template <uint32_t start, typename HeadType, typename... TailTypes>
         CUDA_DEVICE_FUNCTION void packToUInts(uint32_t* v, const HeadType &head, const TailTypes &... tails) {
-            constexpr uint32_t numDwords = sizeof(HeadType) / 4;
+            static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
+                          "Value type of size not multiple of Dword is not supported.");
+            constexpr uint32_t numDwords = sizeof(HeadType) / sizeof(uint32_t);
 #pragma unroll
             for (int i = 0; i < numDwords; ++i)
                 v[start + i] = *(reinterpret_cast<const uint32_t*>(&head) + i);
@@ -438,7 +448,7 @@ namespace optixu {
         CUDA_DEVICE_FUNCTION void getValue(Type* value) {
             if (!value)
                 return;
-            constexpr uint32_t numDwords = sizeof(Type) / 4;
+            constexpr uint32_t numDwords = sizeof(Type) / sizeof(uint32_t);
             *(reinterpret_cast<uint32_t*>(value) + offset) = Func::get<start>();
             if constexpr (offset + 1 < numDwords)
                 getValue<Func, Type, offset + 1, start + 1>(value);
@@ -446,31 +456,37 @@ namespace optixu {
 
         template <typename Func, uint32_t start, typename HeadType, typename... TailTypes>
         CUDA_DEVICE_FUNCTION void getValues(HeadType* head, TailTypes*... tails) {
+            static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
+                          "Value type of size not multiple of Dword is not supported.");
             getValue<Func, HeadType, 0, start>(head);
             if constexpr (sizeof...(tails) > 0)
-                getValues<Func, start + sizeof(HeadType) / 4>(tails...);
+                getValues<Func, start + sizeof(HeadType) / sizeof(uint32_t)>(tails...);
         }
 
         template <typename Func, typename Type, uint32_t offset, uint32_t start>
-        CUDA_DEVICE_FUNCTION void setValue(const Type* payload) {
-            if (!payload)
+        CUDA_DEVICE_FUNCTION void setValue(const Type* value) {
+            if (!value)
                 return;
-            constexpr uint32_t numDwords = sizeof(Type) / 4;
-            Func::set<start>(*(reinterpret_cast<const uint32_t*>(payload) + offset));
+            constexpr uint32_t numDwords = sizeof(Type) / sizeof(uint32_t);
+            Func::set<start>(*(reinterpret_cast<const uint32_t*>(value) + offset));
             if constexpr (offset + 1 < numDwords)
-                setValue<Func, Type, offset + 1, start + 1>(payload);
+                setValue<Func, Type, offset + 1, start + 1>(value);
         }
 
         template <typename Func, uint32_t start, typename HeadType, typename... TailTypes>
         CUDA_DEVICE_FUNCTION void setValues(const HeadType* head, const TailTypes*... tails) {
+            static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
+                          "Value type of size not multiple of Dword is not supported.");
             setValue<Func, HeadType, 0, start>(head);
             if constexpr (sizeof...(tails) > 0)
-                setValues<Func, start + sizeof(HeadType) / 4>(tails...);
+                setValues<Func, start + sizeof(HeadType) / sizeof(uint32_t)>(tails...);
         }
 
         template <uint32_t start, typename HeadType, typename... TailTypes>
         CUDA_DEVICE_FUNCTION void traceSetPayloads(uint32_t** p, HeadType &headPayload, TailTypes &... tailPayloads) {
-            constexpr uint32_t numDwords = sizeof(HeadType) / 4;
+            static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
+                          "Payload type of size not multiple of Dword is not supported.");
+            constexpr uint32_t numDwords = sizeof(HeadType) / sizeof(uint32_t);
 #pragma unroll
             for (int i = 0; i < numDwords; ++i)
                 p[start + i] = reinterpret_cast<uint32_t*>(&headPayload) + i;
@@ -916,16 +932,21 @@ private: \
         void setNumMaterialSets(uint32_t numMatSets) const;
         void setNumRayTypes(uint32_t matSetIdx, uint32_t numRayTypes) const;
 
-        // JP: リビルド・コンパクト・アップデートを行った場合は(間接的に)所属するTraversable (例: IAS)
+        // JP: リビルド・コンパクトを行った場合はこのGASが(間接的に)所属するTraversable (例: IAS)
         //     のmarkDirty()を呼ぶ必要がある。
-        // EN: Calling markDirty() of a traversable (e.g. IAS) to which the GAS (indirectly) belongs
-        //     is required when performing rebuild / compact / update.
+        // EN: Calling markDirty() of a traversable (e.g. IAS) to which this GAS (indirectly) belongs
+        //     is required when performing rebuild / compact.
         void prepareForBuild(OptixAccelBufferSizes* memoryRequirement) const;
         OptixTraversableHandle rebuild(CUstream stream, const Buffer &accelBuffer, const Buffer &scratchBuffer) const;
         void prepareForCompact(size_t* compactedAccelBufferSize) const;
         OptixTraversableHandle compact(CUstream stream, const Buffer &compactedAccelBuffer) const;
         void removeUncompacted() const;
-        OptixTraversableHandle update(CUstream stream, const Buffer &scratchBuffer) const;
+
+        // JP: アップデートを行った場合はこのGASが(間接的に)所属するTraversable (例: IAS)
+        //     もアップデートもしくはリビルドする必要がある。
+        // EN: Updating or rebuilding a traversable (e.g. IAS) to which this GAS (indirectly) belongs
+        //     is required when performing update.
+        void update(CUstream stream, const Buffer &scratchBuffer) const;
 
         // JP: 以下のAPIを呼んだ場合はシェーダーバインディングテーブルを更新する必要がある。
         //     パイプラインのmarkHitGroupShaderBindingTableDirty()を呼べばローンチ時にセットアップされる。
@@ -997,6 +1018,13 @@ private: \
 
 
 
+    // TODO: インスタンスバッファーもユーザー管理にしたいため、rebuild()が今の形になっているが微妙かもしれない。
+    //       インスタンスバッファーを内部で1つ持つようにすると、
+    //       あるフレームでIASをビルド、次のフレームでインスタンスの追加がありリビルドの必要が生じた場合に
+    //       1フレーム目のGPU処理の終了を待たないと危険という状況になってしまう。
+    //       OptiX的にはASのビルド完了後にはインスタンスバッファーは不要となるが、
+    //       アップデート処理はリビルド時に書かれたインスタンスバッファーの内容を期待しているため、
+    //       基本的にインスタンスバッファーとASのメモリ(コンパクション版にもなり得る)は同じ寿命で扱ったほうが良さそう。
     class InstanceAccelerationStructure {
         OPTIX_PIMPL();
 
@@ -1012,20 +1040,12 @@ private: \
         void removeChild(Instance instance) const;
         void markDirty() const;
 
-        // JP: リビルド・コンパクト・アップデートを行った場合は(間接的に)所属するTraversable (例: IAS)
+        // JP: リビルド・コンパクトを行った場合はこのIASが(間接的に)所属するTraversable (例: IAS)
         //     のmarkDirty()を呼ぶ必要がある。
-        // EN: Calling markDirty() of a traversable (e.g. IAS) to which the IAS (indirectly) belongs
-        //     is required when performing rebuild / compact / update.
+        // EN: Calling markDirty() of a traversable (e.g. IAS) to which this IAS (indirectly) belongs
+        //     is required when performing rebuild / compact.
         void prepareForBuild(OptixAccelBufferSizes* memoryRequirement, uint32_t* numInstances,
                              uint32_t* numAABBs = nullptr) const;
-        // JP: インスタンスバッファーもユーザー管理にしたいため、今の形になっているが微妙かもしれない。
-        //     インスタンスバッファーを内部で1つ持つようにすると、
-        //     あるフレームでIASをビルド、次のフレームでインスタンスの追加がありリビルドの必要が生じた場合に
-        //     1フレーム目のGPU処理の終了を待たないと危険という状況になってしまう。
-        //     OptiX的にはASのビルド完了後にはインスタンスバッファーは不要となるが、
-        //     アップデート処理はリビルド時に書かれたインスタンスバッファーの内容を期待しているため、
-        //     基本的にインスタンスバッファーとASのメモリ(コンパクション版にもなり得る)は同じ寿命で扱ったほうが良さそう。
-        // EN: 
         OptixTraversableHandle rebuild(CUstream stream, const TypedBuffer<OptixInstance> &instanceBuffer,
                                        const Buffer &accelBuffer, const Buffer &scratchBuffer) const;
         OptixTraversableHandle rebuild(CUstream stream, const TypedBuffer<OptixInstance> &instanceBuffer, const TypedBuffer<OptixAabb> &aabbBuffer,
@@ -1033,7 +1053,12 @@ private: \
         void prepareForCompact(size_t* compactedAccelBufferSize) const;
         OptixTraversableHandle compact(CUstream stream, const Buffer &compactedAccelBuffer) const;
         void removeUncompacted() const;
-        OptixTraversableHandle update(CUstream stream, const Buffer &scratchBuffer) const;
+
+        // JP: アップデートを行った場合はこのIASが(間接的に)所属するTraversable (例: IAS)
+        //     もアップデートもしくはリビルドする必要がある。
+        // EN: Updating or rebuilding a traversable (e.g. IAS) to which this IAS (indirectly) belongs
+        //     is required when performing update.
+        void update(CUstream stream, const Buffer &scratchBuffer) const;
 
         bool isReady() const;
         OptixTraversableHandle getHandle() const;

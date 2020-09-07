@@ -267,6 +267,16 @@ namespace cudau {
         Managed = 3, // TODO: test
     };
 
+    //        ReadWrite: Do bidirectional transfers when mapping and unmapping.
+    //         ReadOnly: Do not issue a host-to-device transfer when unmapping.
+    // WriteOnlyDiscard: Do not issue a device-to-host transfer when mapping and
+    //                   the previous contents will be undefined.
+    enum class BufferMapFlag {
+        ReadWrite = 0,
+        ReadOnly,
+        WriteOnlyDiscard
+    };
+
     class Buffer {
         CUcontext m_cuContext;
         BufferType m_type;
@@ -277,6 +287,7 @@ namespace cudau {
         void* m_hostPointer;
         CUdeviceptr m_devicePointer;
         void* m_mappedPointer;
+        BufferMapFlag m_mapFlag;
 
         uint32_t m_GLBufferID;
         CUgraphicsResource m_cudaGfxResource;
@@ -356,10 +367,10 @@ namespace cudau {
         void endCUDAAccess(CUstream stream);
 
         void setMappedMemoryPersistent(bool b);
-        void* map(CUstream stream = 0);
+        void* map(CUstream stream = 0, BufferMapFlag flag = BufferMapFlag::ReadWrite);
         template <typename T>
-        T* map(CUstream stream = 0) {
-            return reinterpret_cast<T*>(map(stream));
+        T* map(CUstream stream = 0, BufferMapFlag flag = BufferMapFlag::ReadWrite) {
+            return reinterpret_cast<T*>(map(stream, flag));
         }
         void unmap(CUstream stream = 0);
         void* getMappedPointer() const {
@@ -370,22 +381,33 @@ namespace cudau {
             return reinterpret_cast<T*>(m_mappedPointer);
         }
         template <typename T>
-        void transfer(const T* srcValues, uint32_t numValues, CUstream stream = 0) {
-            if (sizeof(T) * numValues > static_cast<size_t>(m_stride) * m_numElements)
-                throw std::runtime_error("Too large transfer.");
-            auto dstValues = map<T>(stream);
-            std::copy_n(srcValues, numValues, dstValues);
-            unmap(stream);
+        void transfer(const T* srcValues, uint32_t numValues, CUstream stream = 0) const {
+            const size_t transferSize = sizeof(T) * numValues;
+            const size_t bufferSize = static_cast<size_t>(m_stride) * m_numElements;
+            if (transferSize > bufferSize)
+                throw std::runtime_error("Too large transfer");
+            CUDADRV_CHECK(cuMemcpyHtoDAsync(getCUdeviceptr(), srcValues, transferSize, stream));
         }
         template <typename T>
-        void fill(const T &value, CUstream stream = 0) {
+        void transfer(const std::vector<T> &values, CUstream stream = 0) const {
+            transfer(values.data(), values.size(), stream);
+        }
+        template <typename T>
+        void fill(const T &value, CUstream stream = 0) const {
             size_t numValues = (static_cast<size_t>(m_stride) * m_numElements) / sizeof(T);
-            auto dstValues = map<T>(stream);
-            std::fill_n(dstValues, numValues, value);
-            unmap(stream);
+            if (m_persistentMappedMemory) {
+                T* values = reinterpret_cast<T*>(m_mappedPointer);
+                for (int i = 0; i < numValues; ++i)
+                    values[i] = value;
+                transfer(values, numValues, stream);
+            }
+            else {
+                std::vector values(numValues, value);
+                transfer(values, stream);
+            }
         }
 
-        Buffer copy() const;
+        Buffer copy(CUstream stream = 0) const;
     };
 
 
@@ -408,27 +430,25 @@ namespace cudau {
         void initialize(CUcontext context, BufferType type, int32_t numElements) {
             Buffer::initialize(context, type, numElements, sizeof(T));
         }
-        void initialize(CUcontext context, BufferType type, int32_t numElements, const T &value) {
-            Buffer::initialize(context, type, numElements, sizeof(T));
-            T* values = (T*)Buffer::map();
-            for (int i = 0; i < numElements; ++i)
-                values[i] = value;
-            Buffer::unmap();
+        void initialize(CUcontext context, BufferType type, int32_t numElements, const T &value, CUstream stream = 0) {
+            std::vector<T> values(numElements, value);
+            initialize(context, type, values.size());
+            CUDADRV_CHECK(cuMemcpyHtoDAsync(Buffer::getCUdeviceptr(), values.data(), values.size() * sizeof(T), stream));
         }
-        void initialize(CUcontext context, BufferType type, const T* v, uint32_t numElements) {
+        void initialize(CUcontext context, BufferType type, const T* v, uint32_t numElements, CUstream stream = 0) {
             initialize(context, type, numElements);
-            CUDADRV_CHECK(cuMemcpyHtoD(Buffer::getCUdeviceptr(), v, numElements * sizeof(T)));
+            CUDADRV_CHECK(cuMemcpyHtoDAsync(Buffer::getCUdeviceptr(), v, numElements * sizeof(T), stream));
         }
-        void initialize(CUcontext context, BufferType type, const std::vector<T> &v) {
+        void initialize(CUcontext context, BufferType type, const std::vector<T> &v, CUstream stream = 0) {
             initialize(context, type, v.size());
-            CUDADRV_CHECK(cuMemcpyHtoD(Buffer::getCUdeviceptr(), v.data(), v.size() * sizeof(T)));
+            CUDADRV_CHECK(cuMemcpyHtoDAsync(Buffer::getCUdeviceptr(), v.data(), v.size() * sizeof(T), stream));
         }
         void finalize() {
             Buffer::finalize();
         }
 
-        void resize(int32_t numElements) {
-            Buffer::resize(numElements, sizeof(T));
+        void resize(int32_t numElements, CUstream stream = 0) {
+            Buffer::resize(numElements, sizeof(T), stream);
         }
 
         T* getDevicePointer() const {
@@ -438,19 +458,20 @@ namespace cudau {
             return reinterpret_cast<T*>(getCUdeviceptrAt(idx));
         }
 
-        T* map(CUstream stream = 0) {
-            return Buffer::map<T>(stream);
+        T* map(CUstream stream = 0, BufferMapFlag flag = BufferMapFlag::ReadWrite) {
+            return Buffer::map<T>(stream, flag);
         }
         T* getMappedPointer() const {
             return Buffer::getMappedPointer<T>();
         }
-        void transfer(const T* srcValues, uint32_t numValues, CUstream stream = 0) {
+        void transfer(const T* srcValues, uint32_t numValues, CUstream stream = 0) const {
             Buffer::transfer<T>(srcValues, numValues, stream);
         }
-        void fill(const T &value, CUstream stream = 0) {
+        void fill(const T &value, CUstream stream = 0) const {
             Buffer::fill<T>(value, stream);
         }
 
+        // TODO: ? stream
         T operator[](uint32_t idx) {
             const T* values = map();
             T ret = values[idx];
@@ -458,10 +479,10 @@ namespace cudau {
             return ret;
         }
 
-        TypedBuffer<T> copy() const {
+        TypedBuffer<T> copy(CUstream stream = 0) const {
             TypedBuffer<T> ret;
             // safe ?
-            *reinterpret_cast<Buffer*>(&ret) = Buffer::copy();
+            *reinterpret_cast<Buffer*>(&ret) = Buffer::copy(stream);
             return ret;
         }
     };
@@ -472,11 +493,11 @@ namespace cudau {
 
     public:
         TypedHostBuffer() {}
-        TypedHostBuffer(TypedBuffer<T> &b) {
+        TypedHostBuffer(TypedBuffer<T> &b, CUstream stream = 0) {
             m_values.resize(b.numElements());
-            auto srcValues = b.map();
+            auto srcValues = b.map(stream);
             std::copy_n(srcValues, b.numElements(), m_values.data());
-            b.unmap();
+            b.unmap(stream);
         }
 
         T* getPointer() {
@@ -549,6 +570,7 @@ namespace cudau {
         void** m_mappedPointers;
         CUarray* m_mappedArrays;
         CUsurfObject* m_surfObjs;
+        BufferMapFlag m_mapFlag;
 
         uint32_t m_GLTexID;
         CUgraphicsResource m_cudaGfxResource;
@@ -670,10 +692,10 @@ namespace cudau {
         void beginCUDAAccess(CUstream stream, uint32_t mipmapLevel);
         void endCUDAAccess(CUstream stream, uint32_t mipmapLevel);
 
-        void* map(uint32_t mipmapLevel = 0, CUstream stream = 0);
+        void* map(uint32_t mipmapLevel = 0, CUstream stream = 0, BufferMapFlag flag = BufferMapFlag::ReadWrite);
         template <typename T>
-        T* map(uint32_t mipmapLevel = 0, CUstream stream = 0) {
-            return reinterpret_cast<T*>(map(mipmapLevel, stream));
+        T* map(uint32_t mipmapLevel = 0, CUstream stream = 0, BufferMapFlag flag = BufferMapFlag::ReadWrite) {
+            return reinterpret_cast<T*>(map(mipmapLevel, stream, flag));
         }
         void unmap(uint32_t mipmapLevel = 0, CUstream stream = 0);
         template <typename T>
@@ -695,7 +717,7 @@ namespace cudau {
             uint32_t depth = std::max<uint32_t>(1, m_depth);
             size_t size = static_cast<size_t>(m_stride) * depth * height * width;
             size_t numValues = size / sizeof(T);
-            auto dstValues = map<T>(mipmapLevel, stream);
+            auto dstValues = map<T>(mipmapLevel, stream, BufferMapFlag::WriteOnlyDiscard);
             std::fill_n(dstValues, numValues, value);
             unmap(mipmapLevel, stream);
         }
