@@ -141,6 +141,7 @@ namespace Jahley
         properties.renderProps->addDefault (RenderKey::RenderTime, double (0.0));
         properties.renderProps->addDefault (RenderKey::ResourceFolder, INVALID_PATH);
         properties.renderProps->addDefault (RenderKey::CommonFolder, INVALID_PATH);
+        properties.renderProps->addDefault(RenderKey::RootFolder, INVALID_PATH);
         properties.renderProps->addDefault (RenderKey::PtxFolder, INVALID_PATH);
         properties.renderProps->addDefault (RenderKey::MotionBlur, DEFAULT_MOTION_BLUR);
         properties.renderProps->addDefault (RenderKey::RenderType, DEFAULT_RENDER_TYPE);

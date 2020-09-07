@@ -4,6 +4,7 @@ static const char* RenderKeyTable[] =
     {
         "ResourceFolder",
         "CommonFolder",
+         "RootFolder",
         "RenderTime",
         "RenderState",
         "MotionBlur",
@@ -20,6 +21,7 @@ struct RenderKey
     {
         ResourceFolder,
         CommonFolder,
+        RootFolder,
         RenderTime,
         RenderState,
         MotionBlur,

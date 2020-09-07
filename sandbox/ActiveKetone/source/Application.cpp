@@ -22,12 +22,15 @@ class Application : public Jahley::App
         std::string resourceFolder = getResourcePath (APP_NAME).toStdString();
         properties.renderProps->setValue (RenderKey::ResourceFolder, resourceFolder);
 
+        std::string rootFolder = getRepositoryPath(APP_NAME).toStdString();
+        properties.renderProps->setValue(RenderKey::RootFolder, rootFolder);
+
         // store the resource folder shared by all projects
         std::string commonFolder = getResourcePath ("Common").toStdString();
         properties.renderProps->setValue (RenderKey::CommonFolder, commonFolder);
 
-        // ptx files are stored in the resource folder
-        properties.renderProps->setValue (RenderKey::PtxFolder, resourceFolder);
+        // ptx files are stored in the resource/ptx folder
+        properties.renderProps->setValue(RenderKey::PtxFolder, resourceFolder + "/ptx");
 
         // create the default camera
         camera = PerspectiveCam::create();

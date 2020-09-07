@@ -38,6 +38,10 @@
 #include <random/include/random.hpp>
 using RandoM = effolkronium::random_static;
 
+// json
+#include <json/single_include/nlohmann/json.hpp>
+using nlohmann::json;
+
 // g3log
 #include <g3log/g3log.hpp>
 #include <g3log/logworker.hpp>

@@ -14,7 +14,7 @@ void DenoisingHandler::initialize (MoojiStateRef& state, uint32_t renderWidth, u
 {
     this->state = state;
 
-    CUDADRV_CHECK (cuModuleLoad (&moduleCopyBuffers, (state->engine.getPtxFolder() + "/copy_buffers.cu.ptx").c_str()));
+    CUDADRV_CHECK (cuModuleLoad (&moduleCopyBuffers, (state->engine.getPtxFolder() + "/copy_buffers.ptx").c_str()));
     kernelCopyBuffers.set (moduleCopyBuffers, "copyBuffers", cudau::dim3 (8, 8), 0);
 
     CUcontext& cuContext = state->engine.cuCtx();

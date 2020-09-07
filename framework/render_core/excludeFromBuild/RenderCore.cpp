@@ -9,6 +9,8 @@ void RenderCore::init (MessageService messenger, const PropertyService& properti
 {
     this->messengers = messengers;
     this->properties = properties;
+
+    compiler.compile(properties);
 }
 
 void RenderCore::initEngine (CameraHandle& camera)

@@ -11,3 +11,4 @@
 #include "excludeFromBuild/handlers/MotionHandler.cpp"
 #include "excludeFromBuild/handlers/DenoisingHandler.cpp"
 #include "excludeFromBuild/handlers/MaterialHandler.cpp"
+#include "excludeFromBuild/nvcc/CudaCompiler.cpp"

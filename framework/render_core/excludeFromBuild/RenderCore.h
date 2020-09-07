@@ -29,6 +29,7 @@ class RenderCore
 	MessageService messengers;
 	PropertyService properties;
     InputEvent input;
+    CudaCompiler compiler;
 
     size_t lastSelectedCount = 0;
     std::string ptxFolder = INVALID_PATH;

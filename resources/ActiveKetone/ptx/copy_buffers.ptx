@@ -7,10 +7,11 @@
 //
 
 .version 7.0
-.target sm_52
+.target sm_75
 .address_size 64
 
 	// .globl	copyBuffers
+.const .align 1 .b8 PermutationTable[76] = {0, 10, 2, 7, 3, 5, 6, 4, 8, 1, 9, 5, 11, 6, 8, 1, 10, 12, 9, 3, 7, 0, 4, 2, 13, 10, 11, 5, 6, 9, 4, 3, 8, 7, 14, 2, 0, 1, 15, 12, 1, 13, 5, 14, 12, 3, 6, 16, 0, 8, 9, 2, 11, 4, 15, 7, 10, 10, 6, 5, 8, 15, 0, 17, 7, 14, 18, 13, 16, 2, 9, 12, 1, 11, 4, 3};
 
 .visible .entry copyBuffers(
 	.param .align 8 .b8 copyBuffers_param_0[8],

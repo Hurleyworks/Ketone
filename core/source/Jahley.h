@@ -20,3 +20,12 @@ inline String getResourcePath (const String& appName)
     String pathToRepro = exefullPath.upToFirstOccurrenceOf (REPOSITORY_NAME, true, false);
     return pathToRepro + "/resources/" + appName;
 }
+
+inline String getRepositoryPath(const String& appName)
+{
+    File exe = File::getSpecialLocation(File::SpecialLocationType::currentExecutableFile);
+    String exefullPath = exe.getFullPathName();
+
+    String pathToRepro = exefullPath.upToFirstOccurrenceOf(REPOSITORY_NAME, true, false);
+    return pathToRepro;
+}

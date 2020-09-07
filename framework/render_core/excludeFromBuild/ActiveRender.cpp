@@ -3,7 +3,7 @@
 // Copyright (c) 2017, HurleyWorks
 
 #include <optiX7Util/src/common.h>
-#include "NVRTCompiler.h"
+#include "nvcc/CudaCompiler.h"
 #include "kernels/pathtracer_shared.h"
 
 #include "handlers/PipelineHandler.h"

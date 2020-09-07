@@ -75,9 +75,9 @@ void PipelineHandler::createPathtracerPipeline (const std::string& ptxFolder)
                                      OPTIX_EXCEPTION_FLAG_DEBUG,
                                  OPTIX_PRIMITIVE_TYPE_FLAGS_TRIANGLE);
 
-    const std::string ptxPath = ptxFolder + "/pathtracer_kernels.cu.ptx";
-    const std::string ptx = readTxtFile (ptxPath);
-    if (!ptx.length()) throw std::runtime_error ("Failed to load ptx file at: " + ptxPath);
+    const std::string ptxPath = ptxFolder + "/pathtracer_kernels.ptx";
+    const std::string ptx = readTxtFile(ptxPath);
+    if (!ptx.length()) throw std::runtime_error("Failed to load ptx file at: " + ptxPath);
 
     moduleOptiX = pipeline.createModuleFromPTXString (
         ptx, OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT,
