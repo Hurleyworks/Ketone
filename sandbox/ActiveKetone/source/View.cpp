@@ -80,7 +80,7 @@ void View::create (NanoguiLayer* const gui, const std::string& appName)
     but->setCallback ([&] {
         int count = stackCount->value();
         // FIXME
-        // count = 4;
+        //count =6;
         emitInstanceClump (count);
     });
     but->setTooltip ("Build a clump from the current items");

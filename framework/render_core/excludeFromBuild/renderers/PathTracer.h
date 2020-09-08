@@ -46,5 +46,6 @@ class PathTracer : public IRenderer
     void initializeLaunchParameters (CameraHandle& camera);
     void resize (CameraHandle& camera);
     void pick (InputEvent& input, CUstream& cuStream);
+    void resetPicking();
 
 }; // end class PathTracer
