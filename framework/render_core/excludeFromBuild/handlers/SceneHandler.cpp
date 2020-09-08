@@ -18,7 +18,7 @@ SceneHandler::~SceneHandler()
 	state->hitGroupSBT.finalize();
 
 	state->gasSlotFinder.finalize();
-	state->gasDataBuffer.finalize();
+	//state->gasDataBuffer.finalize();
 	state->materialDataBuffer.finalize();
 	state->geometryInstSlotFinder.finalize();
 	state->geometryDataBuffer.finalize();

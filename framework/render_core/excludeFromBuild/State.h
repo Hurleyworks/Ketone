@@ -54,8 +54,6 @@ struct GeometryGroup
     std::string name;
     optixu::GeometryAccelerationStructure optixGAS;
     std::vector<GeometryInstanceRef> geomInsts;
-    std::vector<Shared::GeometryInstancePreTransform> preTransforms;
-    cudau::TypedBuffer<Shared::GeometryInstancePreTransform> preTransformBuffer;
     std::set<InstanceWRef, std::owner_less<InstanceWRef>> parentInsts;
     cudau::Buffer optixGasMem;
     bool dataTransfered = false;
@@ -107,7 +105,6 @@ struct OptiXEnv
         geometryDataBuffer.initialize (cuContext, g_bufferType, MaxNumGeometryInstances);
         pickDataBuffer.initialize (cuContext, g_bufferType, 1);
         geometryInstSlotFinder.initialize (MaxNumGeometryInstances);
-        gasDataBuffer.initialize (cuContext, g_bufferType, MaxNumGASs);
         gasSlotFinder.initialize (MaxNumGASs);
         geomInstSerialID = 0;
         gasSerialID = 0;
@@ -141,7 +138,6 @@ struct OptiXEnv
     optixu::Scene scene;
     cudau::TypedBuffer<Shared::GeometryData> geometryDataBuffer;
     SlotFinder geometryInstSlotFinder;
-    cudau::TypedBuffer<Shared::GASData> gasDataBuffer;
     SlotFinder gasSlotFinder;
     cudau::TypedBuffer<Shared::MaterialData> materialDataBuffer;
     cudau::TypedBuffer<Shared::PickingData> pickDataBuffer;
@@ -179,7 +175,6 @@ void GeometryInstance::finalize (GeometryInstance* p)
 void GeometryGroup::finalize (GeometryGroup* p)
 {
     p->optixGasMem.finalize();
-    p->preTransformBuffer.finalize();
     p->optixGAS.destroy();
     p->optixEnv->gasSlotFinder.setNotInUse (p->gasIndex);
     delete p;

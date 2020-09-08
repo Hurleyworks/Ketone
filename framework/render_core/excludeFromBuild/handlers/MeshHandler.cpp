@@ -141,18 +141,6 @@ InstanceRef MeshHandler::createInstance (RenderableNode& node)
 
     inst->optixInst.setTransform (t.data());
 
-    if (!geomGroup->dataTransfered)
-    {
-        Shared::GASData gasData;
-        gasData.preTransforms = geomGroup->preTransformBuffer.getDevicePointer();
-
-        CUDADRV_CHECK (cuMemcpyHtoDAsync (state->gasDataBuffer.getCUdeviceptrAt (geomGroup->gasIndex),
-                                          &gasData,
-                                          sizeof (gasData),
-                                          curCuStream));
-        geomGroup->dataTransfered = true;
-    }
-
     state->insts[serialID] = inst;
 
     return inst;
@@ -181,17 +169,10 @@ uint32_t MeshHandler::createGeometryGroup (GeometryInstanceRef& geomInst, uint32
         geomGroup->optixGAS.setNumRayTypes (matSetIdx, state->engine.getRayTypeCount());
 
     geomGroup->optixGAS.setUserData (gasIndex);
-    geomGroup->preTransformBuffer.initialize (state->cuContext, g_bufferType, 1);
     geomGroup->dataTransfered = false;
 
     geomGroup->geomInsts.push_back (geomInst);
-    geomGroup->preTransforms.emplace_back();
-    geomGroup->optixGAS.addChild (geomInst->optixGeomInst, geomGroup->preTransformBuffer.getCUdeviceptrAt (0));
-
-    CUDADRV_CHECK (cuMemcpyHtoDAsync (geomGroup->preTransformBuffer.getCUdeviceptr(),
-                                      geomGroup->preTransforms.data(),
-                                      geomGroup->preTransformBuffer.sizeInBytes(),
-                                      curCuStream));
+    geomGroup->optixGAS.addChild (geomInst->optixGeomInst);
 
     state->geomGroups[serialID] = geomGroup;
 
