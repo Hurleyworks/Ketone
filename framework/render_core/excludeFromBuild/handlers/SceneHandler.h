@@ -46,6 +46,8 @@ class SceneHandler
     // SBT
     size_t hitGroupSbtSize;
     bool hitGroupSbtLayoutUpdated = true;
+    int32_t sbtIndex = -1;
+    cudau::Buffer* curHitGroupSBT = nullptr;
 
     void updateState (bool rebuildIAS = true);
     void createTopGroup (bool motionBlurEnabled = false);

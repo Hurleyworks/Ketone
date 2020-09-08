@@ -183,7 +183,7 @@ void PathTracer::initializeLaunchParameters (CameraHandle& camera)
     plp.pickingFragment = make_float2 (-1.0f, -1.0f);
 
     state->engine.pl().setScene (state->scene);
-    state->engine.pl().setHitGroupShaderBindingTable (&state->hitGroupSBT);
+    state->engine.pl().setHitGroupShaderBindingTable (&state->hitGroupSBT[0]);
 
     updateCamera (camera);
 

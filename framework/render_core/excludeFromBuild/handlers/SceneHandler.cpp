@@ -15,10 +15,10 @@ SceneHandler::~SceneHandler()
 	state->geomInsts.clear();
 
 	state->asScratchBuffer.finalize();
-	state->hitGroupSBT.finalize();
+	state->hitGroupSBT[0].finalize();
+	state->hitGroupSBT[1].finalize();
 
 	state->gasSlotFinder.finalize();
-	//state->gasDataBuffer.finalize();
 	state->materialDataBuffer.finalize();
 	state->geometryInstSlotFinder.finalize();
 	state->geometryDataBuffer.finalize();
@@ -91,12 +91,16 @@ void SceneHandler::updateState(bool rebuildIAS)
 
 	if (hitGroupSbtLayoutUpdated)
 	{
+		sbtIndex = (sbtIndex + 1) % 2;
+		curHitGroupSBT = &state->hitGroupSBT[sbtIndex];
+
+		size_t hitGroupSbtSize;
 		state->scene.generateShaderBindingTableLayout(&hitGroupSbtSize);
-		if (state->hitGroupSBT.isInitialized())
-			state->hitGroupSBT.resize(hitGroupSbtSize, 1, state->engine.stream());
+		if (curHitGroupSBT->isInitialized())
+			curHitGroupSBT->resize(hitGroupSbtSize, 1, state->engine.stream());
 		else
-			state->hitGroupSBT.initialize(state->cuContext, g_bufferType, hitGroupSbtSize, 1);
-		state->engine.pl().setHitGroupShaderBindingTable(&state->hitGroupSBT);
+			curHitGroupSBT->initialize(state->cuContext, g_bufferType, hitGroupSbtSize, 1);
+		state->engine.pl().setHitGroupShaderBindingTable(curHitGroupSBT);
 		hitGroupSbtLayoutUpdated = false;
 	}
 
