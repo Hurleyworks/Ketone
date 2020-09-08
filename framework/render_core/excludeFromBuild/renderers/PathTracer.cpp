@@ -32,7 +32,6 @@ float PathTracer::render (CameraHandle& camera, InputEvent& input, uint32_t fram
 {
     if (reset) frameIndex = 0;
 
-    state->bufferIndex = frameIndex % 2;
 
     plp.travHandle = state->groups.size() ? state->groups[0]->optixIAS.getHandle() : 0;
     plp.lightGeomInstIndex = state->areaLightIndex;
@@ -42,9 +41,9 @@ float PathTracer::render (CameraHandle& camera, InputEvent& input, uint32_t fram
     if (plp.pickingEnabled)
         pick (input, curCuStream);
 
-    GPUTimer& curGPUTimer = gpuTimer[state->bufferIndex];
+   
 
-    curGPUTimer.render.start (curCuStream);
+    gpuTimer.render.start (curCuStream);
     constexpr uint32_t numSamples = 1;
     for (int pass = 0; pass < numSamples; ++pass)
     {
@@ -53,11 +52,11 @@ float PathTracer::render (CameraHandle& camera, InputEvent& input, uint32_t fram
         state->engine.pl().launch (curCuStream, plpOnDevice, renderWidth, renderHeight, 1);
     }
     CUDADRV_CHECK(cuStreamSynchronize(curCuStream));
-    curGPUTimer.render.stop (curCuStream);
+    gpuTimer.render.stop (curCuStream);
     denoiser.update (curCuStream, renderWidth, renderHeight);
 
     // render time is in ms
-    float renderTime = curGPUTimer.render.report();
+    float renderTime = gpuTimer.render.report();
 
     RenderOutput outputType = properties.renderProps->getVal<RenderOutput> (RenderKey::RenderOutput);
     PixelBuffer& pixels = camera->getPixelBuffer();

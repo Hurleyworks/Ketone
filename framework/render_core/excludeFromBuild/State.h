@@ -151,7 +151,6 @@ struct OptiXEnv
     uint32_t instSerialID = 0;
     uint32_t iasSerialID = 0;
     uint32_t materialID = 0;
-    uint32_t bufferIndex = 0;
 
     // FIXME
     uint32_t areaLightIndex = 0;

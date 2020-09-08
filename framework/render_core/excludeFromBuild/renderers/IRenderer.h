@@ -22,8 +22,8 @@ class IRenderer
     {
         this->state = state;
 
-        gpuTimer[0].initialize (state->cuContext);
-        gpuTimer[1].initialize (state->cuContext);
+        gpuTimer.initialize (state->cuContext);
+     
     }
 
     virtual void generatePickRay (float x, float y) {}
@@ -39,7 +39,7 @@ class IRenderer
     }
     PropertyService properties;
     MoojiStateRef state = nullptr;
-    GPUTimer gpuTimer[2];
+    GPUTimer gpuTimer;
 
     int32_t renderWidth = DEFAULT_DESKTOP_WINDOW_WIDTH;
     int32_t renderHeight = DEFAULT_DESKTOP_WINDOW_HEIGHT;
