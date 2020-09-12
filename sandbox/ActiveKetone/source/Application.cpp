@@ -133,7 +133,7 @@ Jahley::App* Jahley::CreateApplication()
     DesktopWindowSettings settings;
     settings.name = APP_NAME;
     settings.refreshRate = 0;
-    settings.resizable = false;
+    settings.resizable = true;
 
     return new Application (settings, true);
 }
