@@ -33,7 +33,6 @@ private:
 	MotionHandlerRef motion = nullptr;
     NoiseHandlerRef noise = nullptr;
     PipelineHandlerRef pipeline = nullptr;
-    PipelineHandlerRef pickPipeline = nullptr;
     SceneHandlerRef scene = nullptr;
     IRendererRef renderer = nullptr;
 

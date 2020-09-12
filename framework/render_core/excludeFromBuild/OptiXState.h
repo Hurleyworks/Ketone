@@ -2,6 +2,8 @@
 // Created: 7 Sep 2020 8:08:36 pm
 // Copyright (c) 2020, HurleyWorks
 
+// from https://github.com/shocker-0x15/OptiX7_Utility
+
 #pragma once
 
 using Eigen::Vector3f;
