@@ -21,10 +21,7 @@ void SceneHandler::addInstance (RenderableNode& node, InstanceRef& inst, Pipelin
     topGroup->optixIAS.addChild (inst->optixInst);
     inst->parentGroups.insert (topGroup);
 
-    traversablesUpdated = true;
-    hitGroupSbtLayoutUpdated = true;
-
-    updateState (pipeline);
+    updateState (pipeline, true, true, false);
 }
 
 GroupRef SceneHandler::createTopGroup()
@@ -45,12 +42,11 @@ GroupRef SceneHandler::createTopGroup()
     return topGroup;
 }
 
-void SceneHandler::updateState (PipelineHandlerRef& pipeline, bool updateSBT)
+void SceneHandler::updateState (PipelineHandlerRef& pipeline, bool updateSBT, bool dirtyIAS, bool justUpdateIAS)
 {
-    hitGroupSbtLayoutUpdated = updateSBT;
-    if (state->groups.size())
+    if (dirtyIAS && state->groups.size())
         state->groups[0]->optixIAS.markDirty();
-
+    
     for (const auto& it : state->geomGroups)
     {
         const GeometryGroupRef& geomGroup = it.second;
@@ -86,7 +82,7 @@ void SceneHandler::updateState (PipelineHandlerRef& pipeline, bool updateSBT)
         geomGroup->optixGAS.rebuild (state->cuStream, getView (geomGroup->optixGasMem), getView (state->asScratchBuffer));
     }
 
-    if (hitGroupSbtLayoutUpdated)
+    if (updateSBT)
     {
         sbtIndex = (sbtIndex + 1) % 2;
         curHitGroupSBT = &state->hitGroupSBT[sbtIndex];
@@ -103,7 +99,6 @@ void SceneHandler::updateState (PipelineHandlerRef& pipeline, bool updateSBT)
             curHitGroupSBT->setMappedMemoryPersistent (true);
         }
         pipeline->pl().setHitGroupShaderBindingTable (getView (*curHitGroupSBT), curHitGroupSBT->getMappedPointer());
-        hitGroupSbtLayoutUpdated = false;
     }
 
     for (const auto& it : state->groups)
@@ -111,6 +106,12 @@ void SceneHandler::updateState (PipelineHandlerRef& pipeline, bool updateSBT)
         const GroupRef& group = it.second;
         if (group->optixIAS.isReady())
             continue;
+
+        if (justUpdateIAS)
+        {
+            group->optixIAS.update (state->cuStream, getView (state->asScratchBuffer));
+            continue;
+        }
 
         OptixAccelBufferSizes bufferSizes;
         uint32_t numInstances;
@@ -145,5 +146,5 @@ void SceneHandler::updateState (PipelineHandlerRef& pipeline, bool updateSBT)
         group->optixIAS.rebuild (state->cuStream, getView (group->optixInstanceBuffer), getView (group->optixIasMem), getView (state->asScratchBuffer));
     }
 
-    traversablesUpdated = false;
+   
 }

@@ -2,8 +2,6 @@
 // Created: 7 Sep 2020 8:08:36 pm
 // Copyright (c) 2020, HurleyWorks
 
-// from https://github.com/shocker-0x15/OptiX7_Utility
-
 #pragma once
 
 using Eigen::Vector3f;
@@ -123,7 +121,7 @@ struct OptiXEnv
     std::map<uint32_t, GroupRef> groups;
     std::map<uint32_t, GeometryGroupRef> geomGroups;
     std::map<uint32_t, InstanceRef> insts;
-    std::unordered_map<uint32_t, GeometryInstanceRef> geomInsts;
+    std::map<uint32_t, GeometryInstanceRef> geomInsts;
 
     cudau::Buffer asScratchBuffer;
     cudau::Buffer hitGroupSBT[2]; // double buffer

@@ -16,7 +16,7 @@ class SceneHandler
     ~SceneHandler();
 
     void addInstance (RenderableNode& node, InstanceRef& inst, PipelineHandlerRef& pipeline);
-    void updateState (PipelineHandlerRef& pipeline, bool updateSBT = true);
+    void updateState (PipelineHandlerRef& pipeline, bool updateSBT, bool dirtyIAS, bool justUpdateIAS);
 
  private:
     OptiXStateRef state = nullptr;
@@ -24,9 +24,6 @@ class SceneHandler
 
     int32_t sbtIndex = -1;
     cudau::Buffer* curHitGroupSBT = nullptr;
-
-    bool traversablesUpdated = false;
-    bool hitGroupSbtLayoutUpdated = true;
 
     GroupRef createTopGroup();
 

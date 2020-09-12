@@ -20,9 +20,6 @@ class SimpleRenderer : public IRenderer
     RenderableNode pick (float x, float y, PipelineHandlerRef& pipeline) override
     {
         plp.pickingEnabled = 1;
-
-        // OptiX launch index 0,0 is *bottom* left
-        // so subtract Y coord from screen height
         plp.pickingFragment = make_float2 (x, renderHeight - y);
 
         CUDADRV_CHECK (cuMemcpyHtoDAsync (plpOnDevice, &plp, sizeof (plp), state->cuStream));

@@ -42,7 +42,7 @@ void RenderCore::initEngine (CameraHandle& camera)
     pipeline->createPipeline (ptxFolder);
     renderer->initialize (camera);
 
-    scene->updateState (pipeline);
+    scene->updateState (pipeline, true, true, false);
 }
 
 void RenderCore::render (CameraHandle& camera, uint32_t frameNumber)
@@ -85,7 +85,8 @@ void RenderCore::onInput (InputEvent& input)
             }
 
             mesh->onSelectionStateChanged (picked);
-            scene->updateState(pipeline, true);
+            scene->updateState(pipeline, true, true, false);
+            input.setPickedNode (picked);
         }
     }
 }
@@ -103,6 +104,10 @@ void RenderCore::addRenderableNode (RenderableNode& node)
     }
     else
     {
+        // lower the selected flag if neccessary
+        if (node->getState().isSelected())
+            node->getState().state ^= PRenderableState::Selected;
+        
         // instances use their "instanced from" geometry data
         RenderableNode source = node->getInstancedFrom();
         if (!source) throw std::runtime_error ("Not a valid instance: " + node->getName());

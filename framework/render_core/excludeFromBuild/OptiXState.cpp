@@ -2,15 +2,14 @@
 // Created: 7 Sep 2020 8:08:36 pm
 // Copyright (c) 2020, HurleyWorks
 
-
-void GeometryInstance::finalize(GeometryInstance* p)
+void GeometryInstance::finalize (GeometryInstance* p)
 {
-	p->optixGeomInst.destroy();
-	p->triangleBuffer.finalize();
-	delete p;
+    p->optixGeomInst.destroy();
+    p->triangleBuffer.finalize();
+    delete p;
 }
 
-void GeometryGroup::finalize(GeometryGroup* p)
+void GeometryGroup::finalize (GeometryGroup* p)
 {
     p->optixGasMem.finalize();
     p->optixGAS.destroy();
@@ -26,21 +25,22 @@ void GeometryGroup::propagateMarkDirty() const
     }
 }
 
-void Instance::finalize(Instance* p)
+void Instance::finalize (Instance* p)
 {
     p->optixInst.destroy();
     delete p;
 }
 
-void Instance::propagateMarkDirty() const 
+void Instance::propagateMarkDirty() const
 {
-    for (const auto& parentWRef : parentGroups) {
+    for (const auto& parentWRef : parentGroups)
+    {
         GroupRef parent = parentWRef.lock();
         parent->propagateMarkDirty();
     }
 }
 
-void Group::finalize(Group* p) 
+void Group::finalize (Group* p)
 {
     p->optixInstanceBuffer.finalize();
     p->optixIasMem.finalize();
@@ -50,7 +50,8 @@ void Group::finalize(Group* p)
 void Group::propagateMarkDirty() const
 {
     optixIAS.markDirty();
-    for (const auto& parentWRef : parentInsts) {
+    for (const auto& parentWRef : parentInsts)
+    {
         InstanceRef parent = parentWRef.lock();
         parent->propagateMarkDirty();
     }
