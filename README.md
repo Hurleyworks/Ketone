@@ -20,7 +20,6 @@ https://github.com/shocker-0x15/OptiX7_Utility
 <ul> 
   <li>Mouse picking </li>
   <li>Geometry instancing with multiple materials </li>
-  <li>Denosing support</li>
 </ul>
 
 ### Usage
