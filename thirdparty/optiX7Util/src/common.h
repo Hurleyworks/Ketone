@@ -20,8 +20,13 @@
 
 
 #if defined(HP_Platform_Windows_MSVC)
+#ifdef NOMINMAX
 #   define NOMINMAX
+#endif
+#ifndef _USE_MATH_DEFINES
 #   define _USE_MATH_DEFINES
+#endif
+
 #   include <Windows.h>
 #   undef near
 #   undef far
@@ -56,7 +61,7 @@
 
 
 
-#include "optix_util.h"
+#include "optixu_on_cudau.h"
 #if !defined(__CUDA_ARCH__)
 #   undef CUDA_DEVICE_FUNCTION
 #   define CUDA_DEVICE_FUNCTION inline
@@ -91,6 +96,11 @@ constexpr size_t lengthof(const T (&array)[size]) {
 }
 
 
+
+template <typename T>
+CUDA_DEVICE_FUNCTION T alignUp(T value, uint32_t alignment) {
+    return (value + alignment - 1) / alignment * alignment;
+}
 
 CUDA_DEVICE_FUNCTION uint32_t tzcnt(uint32_t x) {
 #if defined(__CUDA_ARCH__)

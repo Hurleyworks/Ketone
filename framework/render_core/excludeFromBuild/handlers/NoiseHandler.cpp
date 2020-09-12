@@ -3,12 +3,12 @@
 // Copyright (c) 2020, HurleyWorks
 
 // ctor
-MotionHandler::MotionHandler (OptiXStateRef state) :
+NoiseHandler::NoiseHandler (OptiXStateRef state) :
     state (state)
 {
 }
 
 // dtor
-MotionHandler::~MotionHandler()
+NoiseHandler::~NoiseHandler()
 {
 }

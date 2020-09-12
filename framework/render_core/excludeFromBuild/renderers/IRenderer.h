@@ -4,62 +4,32 @@
 
 #pragma once
 
-using MoojiRendererRef = std::shared_ptr<class IRenderer>;
-using sabi::InputEvent;
+using IRendererRef = std::shared_ptr<class IRenderer>;
+using sabi::CameraHandle;
+using sabi::RenderableNode;
 
 class IRenderer
 {
  public:
-    const uint32_t DEFAULT_PASSES = 5;
-
- public:
     virtual ~IRenderer()
     {
-        rngBuffer.finalize();
     }
-
-    virtual void initialize (MoojiStateRef& state, CameraHandle& camera)
-    {
-        this->state = state;
-
-        gpuTimer.initialize (state->cuContext);
-     
-    }
-
-    virtual void generatePickRay (float x, float y) {}
+    virtual void initialize (CameraHandle& camera) = 0;
+    virtual float render (CameraHandle& camera, PipelineHandlerRef& pipeline) = 0;
     virtual void updateCamera (CameraHandle& camera) = 0;
     virtual void onResize (CameraHandle& camera) = 0;
-    virtual float render (CameraHandle& camera, InputEvent& input, uint32_t frameNumber, bool reset = false) = 0;
-    virtual void initializeLaunchParameters (CameraHandle& camera) = 0;
+    virtual RenderableNode pick (float x, float y, PipelineHandlerRef& pipeline) { return nullptr; }
 
  protected:
-    IRenderer (const PropertyService& properties) :
-        properties (properties)
+    IRenderer (OptiXStateRef state) :
+        state (state)
     {
     }
-    PropertyService properties;
-    MoojiStateRef state = nullptr;
+
     GPUTimer gpuTimer;
 
     int32_t renderWidth = DEFAULT_DESKTOP_WINDOW_WIDTH;
     int32_t renderHeight = DEFAULT_DESKTOP_WINDOW_HEIGHT;
 
-    uint64_t frameIndex = 0;
-    uint32_t passes = DEFAULT_PASSES;
-
-    optixu::HostBlockBuffer2D<Shared::PCG32RNG, 1> rngBuffer;
-    void rebuildRNG()
-    {
-        rngBuffer.initialize (state->engine.cuCtx(), cudau::BufferType::Device, renderWidth, renderHeight);
-        {
-            std::mt19937_64 rng (591842031321323413);
-
-            rngBuffer.map();
-            for (int y = 0; y < renderHeight; ++y)
-                for (int x = 0; x < renderWidth; ++x)
-                    rngBuffer (x, y).setState (rng());
-            rngBuffer.unmap();
-        };
-    }
-
+    OptiXStateRef state = nullptr;
 }; // end class IRenderer

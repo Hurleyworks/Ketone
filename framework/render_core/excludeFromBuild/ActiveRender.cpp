@@ -3,18 +3,20 @@
 // Copyright (c) 2017, HurleyWorks
 
 #include <optiX7Util/src/common.h>
-#include "nvcc/CudaCompiler.h"
-#include "kernels/pathtracer_shared.h"
 
+#include "kernels/simple_shared.h"
+#include "nvcc/CudaCompiler.h"
+
+#include "OptiXState.h"
 #include "handlers/PipelineHandler.h"
-#include "State.h"
 #include "handlers/MotionHandler.h"
-#include "handlers/DenoisingHandler.h"
+#include "handlers/NoiseHandler.h"
 #include "handlers/MaterialHandler.h"
 #include "handlers/MeshHandler.h"
 #include "handlers/SceneHandler.h"
+#include "handlers/PickHandler.h"
 #include "renderers/IRenderer.h"
-#include "renderers/PathTracer.h"
+#include "renderers/SimpleRenderer.h"
 
 #include "RenderCore.h"
 #include "ActiveRender.h"
@@ -157,12 +159,16 @@ void ActiveRender::renderNextFrame()
         LOG (CRITICAL) << e.what();
         messengers.dreamer.send (QMS::onError (e.what()));
 
-        //done();
+        // shutdown the render thread
+        done();
     }
     catch (...)
     {
         LOG (CRITICAL) << "Caught unknown exception!";
         messengers.dreamer.send (QMS::onError ("Caught unknown exception!"));
+
+        // shutdown the render thread
+        done();
     }
 
     state = &ActiveRender::waitingForMessages;

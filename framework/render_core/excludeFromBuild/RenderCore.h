@@ -5,42 +5,37 @@
 #pragma  once
 
 using sabi::CameraHandle;
+using sabi::RenderableNode;
 
 class RenderCore
 {
 
- public:
-    RenderCore() = default;
-    ~RenderCore() = default;
+public:
+	RenderCore() = default;
+   ~RenderCore();
 
-	void init(MessageService messengers, const PropertyService & properties);
-    void tick (size_t frameNumber) {}
-	void initEngine (CameraHandle& camera);
-    void render (CameraHandle& camera, uint32_t frameNumber);
-    void onInput (InputEvent& input);
-    void addRenderableNode (RenderableNode& node)
-    {
-        InstanceRef inst = mesh->addRenderableNode (node);
-        scene->addInstance (node, inst);
-        sceneIsDirty = true;
-    }
+	void init(MessageService messengers, const PropertyService& properties);
+	void tick(size_t frameNumber) {}
+	void initEngine(CameraHandle& camera);
+	void render(CameraHandle& camera, uint32_t frameNumber);
+	void onInput(InputEvent& input);
+	void addRenderableNode(RenderableNode& node);
 
- private:
+private:
 	MessageService messengers;
 	PropertyService properties;
-    InputEvent input;
-    CudaCompiler compiler;
 
-    size_t lastSelectedCount = 0;
-    std::string ptxFolder = INVALID_PATH;
-    bool enableMotionBlur = false;
-    bool sceneIsDirty = false;
-    RenderMode pipelineType = RenderMode::Invalid;
+    CudaCompiler nvcc;
 
-    MoojiStateRef state = nullptr;
-    MoojiSceneRef scene = nullptr;
-    MoojiRendererRef renderer = nullptr;
-    MoojiMeshRef mesh = nullptr;
+	OptiXStateRef state = nullptr;
+	MeshHandlerRef mesh = nullptr;
+	MaterialHandlerRef material = nullptr;
+	MotionHandlerRef motion = nullptr;
+    NoiseHandlerRef noise = nullptr;
+    PipelineHandlerRef pipeline = nullptr;
+    PipelineHandlerRef pickPipeline = nullptr;
+    SceneHandlerRef scene = nullptr;
+    IRendererRef renderer = nullptr;
 
 }; // end class RenderCore
 

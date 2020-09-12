@@ -32,6 +32,8 @@
 
 #include <optix_function_table_definition.h>
 
+#include <cuda.h>
+#include <sstream>
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
@@ -40,6 +42,20 @@
 #include <intrin.h>
 
 #include <stdexcept>
+
+#define CUDADRV_CHECK(call) \
+    do { \
+        CUresult error = call; \
+        if (error != CUDA_SUCCESS) { \
+            std::stringstream ss; \
+            const char* errMsg = "failed to get an error message."; \
+            cuGetErrorString(error, &errMsg); \
+            ss << "CUDA call (" << #call << " ) failed with error: '" \
+               << errMsg \
+               << "' (" __FILE__ << ":" << __LINE__ << ")\n"; \
+            throw std::runtime_error(ss.str().c_str()); \
+        } \
+    } while (0)
 
 #define OPTIX_CHECK(call) \
     do { \
@@ -84,7 +100,6 @@ namespace optixu {
         optixPrintf("[%2u][%12s]: %s\n", level, tag, message);
     }
 
-    static constexpr BufferType s_BufferType = BufferType::Device;
     static constexpr size_t s_maxMaterialUserDataSize = 512;
     static constexpr size_t s_maxGeometryInstanceUserDataSize = 512;
     static constexpr size_t s_maxGASUserDataSize = 512;
@@ -356,7 +371,7 @@ namespace optixu {
         uint32_t getSingleRecordSize() const {
             return singleRecordSize;
         }
-        void setupHitGroupSBT(CUstream stream, const _Pipeline* pipeline, Buffer* sbt);
+        void setupHitGroupSBT(CUstream stream, const _Pipeline* pipeline, const BufferView &sbt, void* hostMem);
 
         bool isReady(bool* hasMotionAS);
     };
@@ -372,23 +387,19 @@ namespace optixu {
         union {
             struct {
                 CUdeviceptr* vertexBufferArray;
-                const Buffer* vertexBuffer;
-                const Buffer* triangleBuffer;
+                BufferView vertexBuffer;
+                BufferView triangleBuffer;
                 OptixVertexFormat vertexFormat;
                 OptixIndicesFormat indexFormat;
-                uint32_t offsetInBytesForVertices;
-                uint32_t numVertices;
             };
             struct {
                 CUdeviceptr* primitiveAabbBufferArray;
-                const Buffer* primitiveAABBBuffer;
+                BufferView primitiveAABBBuffer;
             };
         };
-        uint32_t offsetInBytesForPrimitives;
-        uint32_t numPrimitives;
         uint32_t primitiveIndexOffset;
         uint32_t materialIndexOffsetSize;
-        const Buffer* materialIndexOffsetBuffer;
+        BufferView materialIndexOffsetBuffer;
         std::vector<uint32_t> buildInputFlags; // per SBT record
 
         std::vector<std::vector<const _Material*>> materials;
@@ -403,25 +414,21 @@ namespace optixu {
         Priv(_Scene* _scene, bool _forCustomPrimitives) :
             scene(_scene),
             userData(sizeof(uint32_t)),
-            offsetInBytesForPrimitives(0),
-            numPrimitives(0),
             primitiveIndexOffset(0),
-            materialIndexOffsetSize(0), materialIndexOffsetBuffer(nullptr),
+            materialIndexOffsetSize(0),
             forCustomPrimitives(_forCustomPrimitives) {
             if (forCustomPrimitives) {
                 primitiveAabbBufferArray = new CUdeviceptr[1];
                 primitiveAabbBufferArray[0] = 0;
-                primitiveAABBBuffer = nullptr;
+                primitiveAABBBuffer = BufferView();
             }
             else {
                 vertexBufferArray = new CUdeviceptr[1];
                 vertexBufferArray[0] = 0;
-                vertexBuffer = nullptr;
-                triangleBuffer = nullptr;
+                vertexBuffer = BufferView();
+                triangleBuffer = BufferView();
                 vertexFormat = OPTIX_VERTEX_FORMAT_NONE;
                 indexFormat = OPTIX_INDICES_FORMAT_NONE;
-                offsetInBytesForVertices = 0;
-                numVertices = 0;
             }
         }
         ~Priv() {
@@ -478,14 +485,14 @@ namespace optixu {
         OptixAccelBufferSizes memoryRequirement;
 
         CUevent finishEvent;
-        TypedBuffer<size_t> compactedSizeOnDevice;
+        CUdeviceptr compactedSizeOnDevice;
         size_t compactedSize;
         OptixAccelEmitDesc propertyCompactedSize;
 
         OptixTraversableHandle handle;
         OptixTraversableHandle compactedHandle;
-        const Buffer* accelBuffer;
-        const Buffer* compactedAccelBuffer;
+        BufferView accelBuffer;
+        BufferView compactedAccelBuffer;
         ASTradeoff tradeoff;
         struct {
             unsigned int forCustomPrimitives : 1;
@@ -505,7 +512,6 @@ namespace optixu {
             scene(_scene),
             userData(sizeof(uint32_t)),
             handle(0), compactedHandle(0),
-            accelBuffer(nullptr), compactedAccelBuffer(nullptr),
             tradeoff(ASTradeoff::Default),
             forCustomPrimitives(_forCustomPrimitives),
             allowUpdate(false), allowCompaction(false), allowRandomVertexAccess(false),
@@ -515,14 +521,14 @@ namespace optixu {
 
             CUDADRV_CHECK(cuEventCreate(&finishEvent,
                                         CU_EVENT_BLOCKING_SYNC | CU_EVENT_DISABLE_TIMING));
-            compactedSizeOnDevice.initialize(scene->getCUDAContext(), s_BufferType, 1);
+            CUDADRV_CHECK(cuMemAlloc(&compactedSizeOnDevice, sizeof(size_t)));
 
             propertyCompactedSize = OptixAccelEmitDesc{};
             propertyCompactedSize.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-            propertyCompactedSize.result = compactedSizeOnDevice.getCUdeviceptr();
+            propertyCompactedSize.result = compactedSizeOnDevice;
         }
         ~Priv() {
-            compactedSizeOnDevice.finalize();
+            cuMemFree(compactedSizeOnDevice);
             cuEventDestroy(finishEvent);
 
             scene->removeGAS(this);
@@ -709,16 +715,16 @@ namespace optixu {
         OptixAccelBufferSizes memoryRequirement;
 
         CUevent finishEvent;
-        TypedBuffer<size_t> compactedSizeOnDevice;
+        CUdeviceptr compactedSizeOnDevice;
         size_t compactedSize;
         OptixAccelEmitDesc propertyCompactedSize;
 
         OptixTraversableHandle handle;
         OptixTraversableHandle compactedHandle;
-        const TypedBuffer<OptixInstance>* instanceBuffer;
-        const TypedBuffer<OptixAabb>* aabbBuffer;
-        const Buffer* accelBuffer;
-        const Buffer* compactedAccelBuffer;
+        BufferView instanceBuffer;
+        BufferView aabbBuffer;
+        BufferView accelBuffer;
+        BufferView compactedAccelBuffer;
         ASTradeoff tradeoff;
         struct {
             unsigned int allowUpdate : 1;
@@ -730,13 +736,15 @@ namespace optixu {
             unsigned int compactedAvailable : 1;
         };
 
+        OptixTraversableHandle rebuild(CUstream stream, const BufferView &instanceBuffer, const BufferView &aabbBuffer,
+                                       const BufferView &accelBuffer, const BufferView &scratchBuffer);
+
     public:
         OPTIX_OPAQUE_BRIDGE(InstanceAccelerationStructure);
 
         Priv(_Scene* _scene) :
             scene(_scene),
             handle(0), compactedHandle(0),
-            instanceBuffer(nullptr), aabbBuffer(nullptr), accelBuffer(nullptr), compactedAccelBuffer(nullptr),
             tradeoff(ASTradeoff::Default),
             allowUpdate(false), allowCompaction(false),
             readyToBuild(false), available(false),
@@ -747,14 +755,14 @@ namespace optixu {
 
             CUDADRV_CHECK(cuEventCreate(&finishEvent,
                                         CU_EVENT_BLOCKING_SYNC | CU_EVENT_DISABLE_TIMING));
-            compactedSizeOnDevice.initialize(scene->getCUDAContext(), s_BufferType, 1);
+            CUDADRV_CHECK(cuMemAlloc(&compactedSizeOnDevice, sizeof(size_t)));
 
             std::memset(&propertyCompactedSize, 0, sizeof(propertyCompactedSize));
             propertyCompactedSize.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
-            propertyCompactedSize.result = compactedSizeOnDevice.getCUdeviceptr();
+            propertyCompactedSize.result = compactedSizeOnDevice;
         }
         ~Priv() {
-            compactedSizeOnDevice.finalize();
+            cuMemFree(compactedSizeOnDevice);
             cuEventDestroy(finishEvent);
 
             scene->removeIAS(this);
@@ -813,8 +821,10 @@ namespace optixu {
         _ProgramGroup* exceptionProgram;
         std::vector<_ProgramGroup*> missPrograms;
         std::vector<_ProgramGroup*> callablePrograms;
-        Buffer* sbt;
-        Buffer* hitGroupSbt;
+        BufferView sbt;
+        void* sbtHostMem;
+        BufferView hitGroupSbt;
+        void* hitGroupSbtHostMem;
         OptixShaderBindingTable sbtParams;
 
         struct {
@@ -833,7 +843,7 @@ namespace optixu {
             context(ctxt), rawPipeline(nullptr),
             sizeOfPipelineLaunchParams(0),
             scene(nullptr), numMissRayTypes(0), numCallablePrograms(0),
-            rayGenProgram(nullptr), exceptionProgram(nullptr), hitGroupSbt(nullptr),
+            rayGenProgram(nullptr), exceptionProgram(nullptr),
             pipelineLinked(false), sbtLayoutIsUpToDate(false), sbtIsUpToDate(false), hitGroupSbtIsUpToDate(false) {
             sbtParams = {};
         }
@@ -966,12 +976,12 @@ namespace optixu {
         size_t scratchSize;
         size_t scratchSizeForComputeIntensity;
 
-        const Buffer* stateBuffer;
-        const Buffer* scratchBuffer;
-        const Buffer* colorBuffer;
-        const Buffer* albedoBuffer;
-        const Buffer* normalBuffer;
-        const Buffer* outputBuffer;
+        BufferView stateBuffer;
+        BufferView scratchBuffer;
+        BufferView colorBuffer;
+        BufferView albedoBuffer;
+        BufferView normalBuffer;
+        BufferView outputBuffer;
         OptixPixelFormat colorFormat;
         OptixPixelFormat albedoFormat;
         OptixPixelFormat normalFormat;
@@ -992,8 +1002,6 @@ namespace optixu {
             imageWidth(0), imageHeight(0), tileWidth(0), tileHeight(0),
             overlapWidth(0), maxInputWidth(0), maxInputHeight(0),
             stateSize(0), scratchSize(0), scratchSizeForComputeIntensity(0),
-            stateBuffer(nullptr), scratchBuffer(nullptr),
-            colorBuffer(nullptr), albedoBuffer(nullptr), normalBuffer(nullptr), outputBuffer(nullptr),
             modelSet(false), useTiling(false), imageSizeSet(false), imageLayersSet(false), stateIsReady(false) {
             OptixDenoiserOptions options = {};
             options.inputKind = inputKind;

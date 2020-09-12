@@ -44,7 +44,7 @@ void CudaCompiler::compile(const PropertyService& properties)
 		json j;
 		i >> j;
 
-		// size has to be even
+		// size has to be even!
 		jassert(j.size() % 2 == 0);
 
 		for (int k = 0; k < j.size(); k += 2)
@@ -76,7 +76,7 @@ void CudaCompiler::compile(const PropertyService& properties)
 		File f(path);
 
 		Time lastModified = f.getLastModificationTime();
-
+		
 		auto it = fileInfo.find(path);
 		if (it == fileInfo.end())
 		{
@@ -101,11 +101,8 @@ void CudaCompiler::compile(const PropertyService& properties)
 		args.add(exe);
 		args.add(f.getFullPathName());
 		//args.add("--verbose");
-#ifndef NDEBUG
-		args.add("--debug");
-		args.add("--device-debug");
-#endif
 		args.add("--ptx");
+        args.add ("--use_fast_math");
 		args.add("--cudart");
 		args.add("shared");
 		args.add("--std");
@@ -135,7 +132,7 @@ void CudaCompiler::compile(const PropertyService& properties)
 		LOG(DBUG) << os.str();
 	}
 
-
+	// save the new info if a file has been modified
 	if (fileModified)
 	{
 		json j;

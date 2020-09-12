@@ -10,6 +10,7 @@ namespace Shared
     {
         uint32_t intanceID;
         uint32_t primitiveID;
+        float3 hitPoint;
     };
 
     struct Vertex
@@ -89,4 +90,5 @@ namespace Shared
             albedo (make_float3 (0.0f, 0.0f, 0.5f)),
             isEmitter (false) {}
     };
+
 } // namespace Shared

@@ -27,7 +27,6 @@ EN: It is very likely for now that any API will have breaking changes.
 TODO:
 - Linux環境でのテスト。
 - setPayloads/getPayloadsなどで引数側が必要以上の引数を渡していてもエラーが出ない問題。
-- 複数のASをCompactionを使いつつメモリ上に詰めて配置する場合にcudau::Bufferを分割して使う仕組みが必要になる。
 - ASのRelocationサポート。
 - BuildInputのどの内容がアップデート時に変更できるのか確認。
 - Curve Primitiveサポート。
@@ -59,8 +58,15 @@ TODO:
 #   define OPTIX_Platform_macOS
 #endif
 
+#if defined(__CUDACC_RTC__)
+
+#else
+#include <cstdint>
+#include <cfloat>
+#include <type_traits>
+#include <string>
+#endif
 #include <optix.h>
-#include "cuda_util.h"
 
 #if !defined(__CUDA_ARCH__)
 #include <optix_stubs.h>
@@ -69,38 +75,34 @@ TODO:
 #if defined(__CUDA_ARCH__)
 #   define RT_CALLABLE_PROGRAM extern "C" __device__
 #   define RT_PIPELINE_LAUNCH_PARAMETERS extern "C" __constant__
+#   define RT_DEVICE_FUNCTION __device__ __forceinline__
+
+#   define RT_RG_NAME(name) __raygen__ ## name
+#   define RT_MS_NAME(name) __miss__ ## name
+#   define RT_EX_NAME(name) __exception__ ## name
+#   define RT_CH_NAME(name) __closesthit__ ## name
+#   define RT_AH_NAME(name) __anyhit__ ## name
+#   define RT_IS_NAME(name) __intersection__ ## name
+#   define RT_DC_NAME(name) __direct_callable__ ## name
+#   define RT_CC_NAME(name) __continuation_callable__ ## name
 #else
 #   define RT_CALLABLE_PROGRAM
 #   define RT_PIPELINE_LAUNCH_PARAMETERS
-#endif
+#   define RT_DEVICE_FUNCTION
 
-#define RT_RG_NAME(name) __raygen__ ## name
-#define RT_MS_NAME(name) __miss__ ## name
-#define RT_EX_NAME(name) __exception__ ## name
-#define RT_CH_NAME(name) __closesthit__ ## name
-#define RT_AH_NAME(name) __anyhit__ ## name
-#define RT_IS_NAME(name) __intersection__ ## name
-#define RT_DC_NAME(name) __direct_callable__ ## name
-#define RT_CC_NAME(name) __continuation_callable__ ## name
-#define RT_RG_NAME_STR(name) "__raygen__" name
-#define RT_MS_NAME_STR(name) "__miss__" name
-#define RT_EX_NAME_STR(name) "__exception__" name
-#define RT_CH_NAME_STR(name) "__closesthit__" name
-#define RT_AH_NAME_STR(name) "__anyhit__" name
-#define RT_IS_NAME_STR(name) "__intersection__" name
-#define RT_DC_NAME_STR(name) "__direct_callable__" name
-#define RT_CC_NAME_STR(name) "__continuation_callable__" name
+#   define RT_RG_NAME_STR(name) "__raygen__" name
+#   define RT_MS_NAME_STR(name) "__miss__" name
+#   define RT_EX_NAME_STR(name) "__exception__" name
+#   define RT_CH_NAME_STR(name) "__closesthit__" name
+#   define RT_AH_NAME_STR(name) "__anyhit__" name
+#   define RT_IS_NAME_STR(name) "__intersection__" name
+#   define RT_DC_NAME_STR(name) "__direct_callable__" name
+#   define RT_CC_NAME_STR(name) "__continuation_callable__" name
+#endif
 
 
 
 namespace optixu {
-#if !defined(__CUDA_ARCH__)
-    using cudau::BufferType;
-    using cudau::BufferMapFlag;
-    using cudau::Buffer;
-    using cudau::TypedBuffer;
-#endif
-
 #ifdef _DEBUG
 #   define OPTIX_ENABLE_ASSERT
 #endif
@@ -131,7 +133,7 @@ namespace optixu {
 #define optixAssert_NotImplemented() optixAssert(false, "Not implemented yet!")
 
     template <typename T>
-    CUDA_DEVICE_FUNCTION constexpr bool false_T() { return false; }
+    RT_DEVICE_FUNCTION constexpr bool false_T() { return false; }
 
 
 
@@ -147,12 +149,12 @@ namespace optixu {
         uint32_t m_sbtIndex;
 
     public:
-        CUDA_DEVICE_FUNCTION DirectCallableProgramID() {}
-        CUDA_DEVICE_FUNCTION explicit DirectCallableProgramID(uint32_t sbtIndex) : m_sbtIndex(sbtIndex) {}
-        CUDA_DEVICE_FUNCTION explicit operator uint32_t() const { return m_sbtIndex; }
+        RT_DEVICE_FUNCTION DirectCallableProgramID() {}
+        RT_DEVICE_FUNCTION explicit DirectCallableProgramID(uint32_t sbtIndex) : m_sbtIndex(sbtIndex) {}
+        RT_DEVICE_FUNCTION explicit operator uint32_t() const { return m_sbtIndex; }
 
 #if defined(__CUDA_ARCH__) || defined(OPTIX_CODE_COMPLETION)
-        CUDA_DEVICE_FUNCTION ReturnType operator()(const ArgTypes &... args) const {
+        RT_DEVICE_FUNCTION ReturnType operator()(const ArgTypes &... args) const {
             return optixDirectCall<ReturnType, ArgTypes...>(m_sbtIndex, args...);
         }
 #endif
@@ -166,12 +168,12 @@ namespace optixu {
         uint32_t m_sbtIndex;
 
     public:
-        CUDA_DEVICE_FUNCTION ContinuationCallableProgramID() {}
-        CUDA_DEVICE_FUNCTION explicit ContinuationCallableProgramID(uint32_t sbtIndex) : m_sbtIndex(sbtIndex) {}
-        CUDA_DEVICE_FUNCTION explicit operator uint32_t() const { return m_sbtIndex; }
+        RT_DEVICE_FUNCTION ContinuationCallableProgramID() {}
+        RT_DEVICE_FUNCTION explicit ContinuationCallableProgramID(uint32_t sbtIndex) : m_sbtIndex(sbtIndex) {}
+        RT_DEVICE_FUNCTION explicit operator uint32_t() const { return m_sbtIndex; }
 
 #if defined(__CUDA_ARCH__) || defined(OPTIX_CODE_COMPLETION)
-        CUDA_DEVICE_FUNCTION ReturnType operator()(const ArgTypes &... args) const {
+        RT_DEVICE_FUNCTION ReturnType operator()(const ArgTypes &... args) const {
             return optixContinuationCall<ReturnType, ArgTypes...>(m_sbtIndex, args...);
         }
 #endif
@@ -184,225 +186,37 @@ namespace optixu {
         CUsurfObject m_surfObject;
 
     public:
-        CUDA_DEVICE_FUNCTION NativeBlockBuffer2D() : m_surfObject(0) {}
-        CUDA_DEVICE_FUNCTION NativeBlockBuffer2D(CUsurfObject surfObject) : m_surfObject(surfObject) {};
+        RT_DEVICE_FUNCTION NativeBlockBuffer2D() : m_surfObject(0) {}
+        RT_DEVICE_FUNCTION NativeBlockBuffer2D(CUsurfObject surfObject) : m_surfObject(surfObject) {};
 
-        CUDA_DEVICE_FUNCTION NativeBlockBuffer2D &operator=(CUsurfObject surfObject) {
+        RT_DEVICE_FUNCTION NativeBlockBuffer2D &operator=(CUsurfObject surfObject) {
             m_surfObject = surfObject;
             return *this;
         }
 
 #if defined(__CUDA_ARCH__) || defined(OPTIX_CODE_COMPLETION)
-        CUDA_DEVICE_FUNCTION T read(uint2 idx) const {
+        RT_DEVICE_FUNCTION T read(uint2 idx) const {
             return surf2Dread<T>(m_surfObject, idx.x * sizeof(T), idx.y);
         }
-        CUDA_DEVICE_FUNCTION void write(uint2 idx, const T &value) const {
+        RT_DEVICE_FUNCTION void write(uint2 idx, const T &value) const {
             surf2Dwrite(value, m_surfObject, idx.x * sizeof(T), idx.y);
         }
         template <uint32_t comp, typename U>
-        CUDA_DEVICE_FUNCTION void writeComp(uint2 idx, U value) const {
+        RT_DEVICE_FUNCTION void writeComp(uint2 idx, U value) const {
             surf2Dwrite(value, m_surfObject, idx.x * sizeof(T) + comp * sizeof(U), idx.y);
         }
-        CUDA_DEVICE_FUNCTION T read(int2 idx) const {
+        RT_DEVICE_FUNCTION T read(int2 idx) const {
             return surf2Dread<T>(m_surfObject, idx.x * sizeof(T), idx.y);
         }
-        CUDA_DEVICE_FUNCTION void write(int2 idx, const T &value) const {
+        RT_DEVICE_FUNCTION void write(int2 idx, const T &value) const {
             surf2Dwrite(value, m_surfObject, idx.x * sizeof(T), idx.y);
         }
         template <uint32_t comp, typename U>
-        CUDA_DEVICE_FUNCTION void writeComp(int2 idx, U value) const {
+        RT_DEVICE_FUNCTION void writeComp(int2 idx, U value) const {
             surf2Dwrite(value, m_surfObject, idx.x * sizeof(T) + comp * sizeof(U), idx.y);
         }
 #endif
     };
-
-
-    
-    template <typename T, uint32_t log2BlockWidth>
-    class BlockBuffer2D {
-        T* m_rawBuffer;
-        uint32_t m_width;
-        uint32_t m_height;
-        uint32_t m_numXBlocks;
-
-#if defined(__CUDA_ARCH__)
-        CUDA_DEVICE_FUNCTION constexpr uint32_t calcLinearIndex(uint32_t idxX, uint32_t idxY) const {
-            constexpr uint32_t blockWidth = 1 << log2BlockWidth;
-            constexpr uint32_t mask = blockWidth - 1;
-            uint32_t blockIdxX = idxX >> log2BlockWidth;
-            uint32_t blockIdxY = idxY >> log2BlockWidth;
-            uint32_t blockOffset = (blockIdxY * m_numXBlocks + blockIdxX) * (blockWidth * blockWidth);
-            uint32_t idxXInBlock = idxX & mask;
-            uint32_t idxYInBlock = idxY & mask;
-            uint32_t linearIndexInBlock = idxYInBlock * blockWidth + idxXInBlock;
-            return blockOffset + linearIndexInBlock;
-        }
-#endif
-
-    public:
-        CUDA_DEVICE_FUNCTION BlockBuffer2D() {}
-        CUDA_DEVICE_FUNCTION BlockBuffer2D(T* rawBuffer, uint32_t width, uint32_t height) :
-        m_rawBuffer(rawBuffer), m_width(width), m_height(height) {
-            constexpr uint32_t blockWidth = 1 << log2BlockWidth;
-            constexpr uint32_t mask = blockWidth - 1;
-            m_numXBlocks = ((width + mask) & ~mask) >> log2BlockWidth;
-        }
-
-#if defined(__CUDA_ARCH__)
-        CUDA_DEVICE_FUNCTION uint2 getSize() const {
-            return make_uint2(m_width, m_height);
-        }
-
-        CUDA_DEVICE_FUNCTION const T &operator[](uint2 idx) const {
-            optixAssert(idx.x < m_width && idx.y < m_height,
-                        "Out of bounds: %u, %u", idx.x, idx.y);
-            return m_rawBuffer[calcLinearIndex(idx.x, idx.y)];
-        }
-        CUDA_DEVICE_FUNCTION T &operator[](uint2 idx) {
-            optixAssert(idx.x < m_width && idx.y < m_height,
-                        "Out of bounds: %u, %u", idx.x, idx.y);
-            return m_rawBuffer[calcLinearIndex(idx.x, idx.y)];
-        }
-        CUDA_DEVICE_FUNCTION const T &operator[](int2 idx) const {
-            optixAssert(idx.x >= 0 && idx.x < m_width && idx.y >= 0 && idx.y < m_height,
-                        "Out of bounds: %d, %d", idx.x, idx.y);
-            return m_rawBuffer[calcLinearIndex(idx.x, idx.y)];
-        }
-        CUDA_DEVICE_FUNCTION T &operator[](int2 idx) {
-            optixAssert(idx.x >= 0 && idx.x < m_width && idx.y >= 0 && idx.y < m_height,
-                        "Out of bounds: %d, %d", idx.x, idx.y);
-            return m_rawBuffer[calcLinearIndex(idx.x, idx.y)];
-        }
-#endif
-    };
-    
-    
-    
-#if !defined(__CUDA_ARCH__)
-    template <typename T, uint32_t log2BlockWidth>
-    class HostBlockBuffer2D {
-        TypedBuffer<T> m_rawBuffer;
-        uint32_t m_width;
-        uint32_t m_height;
-        uint32_t m_numXBlocks;
-        T* m_mappedPointer;
-
-        constexpr uint32_t calcLinearIndex(uint32_t x, uint32_t y) const {
-            constexpr uint32_t blockWidth = 1 << log2BlockWidth;
-            constexpr uint32_t mask = blockWidth - 1;
-            uint32_t blockIdxX = x >> log2BlockWidth;
-            uint32_t blockIdxY = y >> log2BlockWidth;
-            uint32_t blockOffset = (blockIdxY * m_numXBlocks + blockIdxX) * (blockWidth * blockWidth);
-            uint32_t idxXInBlock = x & mask;
-            uint32_t idxYInBlock = y & mask;
-            uint32_t linearIndexInBlock = idxYInBlock * blockWidth + idxXInBlock;
-            return blockOffset + linearIndexInBlock;
-        }
-
-    public:
-        HostBlockBuffer2D() : m_mappedPointer(nullptr) {}
-        HostBlockBuffer2D(HostBlockBuffer2D &&b) {
-            m_width = b.m_width;
-            m_height = b.m_height;
-            m_numXBlocks = b.m_numXBlocks;
-            m_mappedPointer = b.m_mappedPointer;
-            m_rawBuffer = std::move(b);
-        }
-        HostBlockBuffer2D &operator=(HostBlockBuffer2D &&b) {
-            m_rawBuffer.finalize();
-
-            m_width = b.m_width;
-            m_height = b.m_height;
-            m_numXBlocks = b.m_numXBlocks;
-            m_mappedPointer = b.m_mappedPointer;
-            m_rawBuffer = std::move(b.m_rawBuffer);
-
-            return *this;
-        }
-
-        void initialize(CUcontext context, BufferType type, uint32_t width, uint32_t height) {
-            m_width = width;
-            m_height = height;
-            constexpr uint32_t blockWidth = 1 << log2BlockWidth;
-            constexpr uint32_t mask = blockWidth - 1;
-            m_numXBlocks = ((width + mask) & ~mask) >> log2BlockWidth;
-            uint32_t numYBlocks = ((height + mask) & ~mask) >> log2BlockWidth;
-            uint32_t numElements = numYBlocks * m_numXBlocks * blockWidth * blockWidth;
-            m_rawBuffer.initialize(context, type, numElements);
-        }
-        void finalize() {
-            m_rawBuffer.finalize();
-        }
-
-        void resize(uint32_t width, uint32_t height) {
-            if (!m_rawBuffer.isInitialized())
-                throw std::runtime_error("Buffer is not initialized.");
-
-            if (m_width == width && m_height == height)
-                return;
-
-            HostBlockBuffer2D newBuffer;
-            newBuffer.initialize(m_rawBuffer.getCUcontext(), m_rawBuffer.getBufferType(), width, height);
-
-            constexpr uint32_t blockWidth = 1 << log2BlockWidth;
-            constexpr uint32_t mask = blockWidth - 1;
-            uint32_t numSrcYBlocks = ((m_height + mask) & ~mask) >> log2BlockWidth;
-            uint32_t numDstYBlocks = ((height + mask) & ~mask) >> log2BlockWidth;
-            uint32_t numXBlocksToCopy = std::min(m_numXBlocks, newBuffer.m_numXBlocks);
-            uint32_t numYBlocksToCopy = std::min(numSrcYBlocks, numDstYBlocks);
-            if (numXBlocksToCopy == m_numXBlocks) {
-                size_t numBytesToCopy = (numXBlocksToCopy * numYBlocksToCopy * blockWidth * blockWidth) * sizeof(T);
-                CUDADRV_CHECK(cuMemcpyDtoD(newBuffer.m_rawBuffer.getCUdeviceptr(),
-                                           m_rawBuffer.getCUdeviceptr(),
-                                           numBytesToCopy));
-            }
-            else {
-                for (int yb = 0; yb < numYBlocksToCopy; ++yb) {
-                    size_t srcOffset = (m_numXBlocks * blockWidth * blockWidth * yb) * sizeof(T);
-                    size_t dstOffset = (newBuffer.m_numXBlocks * blockWidth * blockWidth * yb) * sizeof(T);
-                    size_t numBytesToCopy = (numXBlocksToCopy * blockWidth * blockWidth) * sizeof(T);
-                    CUDADRV_CHECK(cuMemcpyDtoD(newBuffer.m_rawBuffer.getCUdeviceptr() + dstOffset,
-                                               m_rawBuffer.getCUdeviceptr() + srcOffset,
-                                               numBytesToCopy));
-                }
-            }
-
-            *this = std::move(newBuffer);
-        }
-
-        CUcontext getCUcontext() const {
-            return m_rawBuffer.getCUcontext();
-        }
-        BufferType getBufferType() const {
-            return m_rawBuffer.getBufferType();
-        }
-
-        CUdeviceptr getCUdeviceptr() const {
-            return m_rawBuffer.getCUdeviceptr();
-        }
-        bool isInitialized() const {
-            return m_rawBuffer.isInitialized();
-        }
-
-        void map() {
-            m_mappedPointer = reinterpret_cast<T*>(m_rawBuffer.map());
-        }
-        void unmap() {
-            m_rawBuffer.unmap();
-            m_mappedPointer = nullptr;
-        }
-        const T &operator()(uint32_t x, uint32_t y) const {
-            return m_mappedPointer[calcLinearIndex(x, y)];
-        }
-        T &operator()(uint32_t x, uint32_t y) {
-            return m_mappedPointer[calcLinearIndex(x, y)];
-        }
-
-        BlockBuffer2D<T, log2BlockWidth> getBlockBuffer2D() const {
-            return BlockBuffer2D<T, log2BlockWidth>(m_rawBuffer.getDevicePointer(), m_width, m_height);
-        }
-    };
-#endif // !defined(__CUDA_ARCH__)
 
     // END: Definitions of Host-/Device-shared classes
     // ----------------------------------------------------------------
@@ -417,7 +231,7 @@ namespace optixu {
 
     namespace detail {
         template <typename HeadType0, typename... TailTypes>
-        CUDA_DEVICE_FUNCTION constexpr size_t _calcSumDwords() {
+        RT_DEVICE_FUNCTION constexpr size_t _calcSumDwords() {
             uint32_t ret = sizeof(HeadType0) / sizeof(uint32_t);
             if constexpr (sizeof...(TailTypes) > 0)
                 ret += _calcSumDwords<TailTypes...>();
@@ -425,7 +239,7 @@ namespace optixu {
         }
 
         template <typename... PayloadTypes>
-        CUDA_DEVICE_FUNCTION constexpr size_t calcSumDwords() {
+        RT_DEVICE_FUNCTION constexpr size_t calcSumDwords() {
             if constexpr (sizeof...(PayloadTypes) > 0)
                 return _calcSumDwords<PayloadTypes...>();
             else
@@ -433,7 +247,7 @@ namespace optixu {
         }
 
         template <uint32_t start, typename HeadType, typename... TailTypes>
-        CUDA_DEVICE_FUNCTION void packToUInts(uint32_t* v, const HeadType &head, const TailTypes &... tails) {
+        RT_DEVICE_FUNCTION void packToUInts(uint32_t* v, const HeadType &head, const TailTypes &... tails) {
             static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
                           "Value type of size not multiple of Dword is not supported.");
             constexpr uint32_t numDwords = sizeof(HeadType) / sizeof(uint32_t);
@@ -445,7 +259,7 @@ namespace optixu {
         }
 
         template <typename Func, typename Type, uint32_t offset, uint32_t start>
-        CUDA_DEVICE_FUNCTION void getValue(Type* value) {
+        RT_DEVICE_FUNCTION void getValue(Type* value) {
             if (!value)
                 return;
             constexpr uint32_t numDwords = sizeof(Type) / sizeof(uint32_t);
@@ -455,7 +269,7 @@ namespace optixu {
         }
 
         template <typename Func, uint32_t start, typename HeadType, typename... TailTypes>
-        CUDA_DEVICE_FUNCTION void getValues(HeadType* head, TailTypes*... tails) {
+        RT_DEVICE_FUNCTION void getValues(HeadType* head, TailTypes*... tails) {
             static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
                           "Value type of size not multiple of Dword is not supported.");
             getValue<Func, HeadType, 0, start>(head);
@@ -464,7 +278,7 @@ namespace optixu {
         }
 
         template <typename Func, typename Type, uint32_t offset, uint32_t start>
-        CUDA_DEVICE_FUNCTION void setValue(const Type* value) {
+        RT_DEVICE_FUNCTION void setValue(const Type* value) {
             if (!value)
                 return;
             constexpr uint32_t numDwords = sizeof(Type) / sizeof(uint32_t);
@@ -474,7 +288,7 @@ namespace optixu {
         }
 
         template <typename Func, uint32_t start, typename HeadType, typename... TailTypes>
-        CUDA_DEVICE_FUNCTION void setValues(const HeadType* head, const TailTypes*... tails) {
+        RT_DEVICE_FUNCTION void setValues(const HeadType* head, const TailTypes*... tails) {
             static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
                           "Value type of size not multiple of Dword is not supported.");
             setValue<Func, HeadType, 0, start>(head);
@@ -483,7 +297,7 @@ namespace optixu {
         }
 
         template <uint32_t start, typename HeadType, typename... TailTypes>
-        CUDA_DEVICE_FUNCTION void traceSetPayloads(uint32_t** p, HeadType &headPayload, TailTypes &... tailPayloads) {
+        RT_DEVICE_FUNCTION void traceSetPayloads(uint32_t** p, HeadType &headPayload, TailTypes &... tailPayloads) {
             static_assert(sizeof(HeadType) % sizeof(uint32_t) == 0,
                           "Payload type of size not multiple of Dword is not supported.");
             constexpr uint32_t numDwords = sizeof(HeadType) / sizeof(uint32_t);
@@ -496,7 +310,7 @@ namespace optixu {
 
         struct PayloadFunc {
             template <uint32_t index>
-            CUDA_DEVICE_FUNCTION static uint32_t get() {
+            RT_DEVICE_FUNCTION static uint32_t get() {
                 if constexpr (index == 0)
                     return optixGetPayload_0();
                 if constexpr (index == 1)
@@ -517,7 +331,7 @@ namespace optixu {
             }
 
             template <uint32_t index>
-            CUDA_DEVICE_FUNCTION static void set(uint32_t p) {
+            RT_DEVICE_FUNCTION static void set(uint32_t p) {
                 if constexpr (index == 0)
                     optixSetPayload_0(p);
                 if constexpr (index == 1)
@@ -539,7 +353,7 @@ namespace optixu {
 
         struct AttributeFunc {
             template <uint32_t index>
-            CUDA_DEVICE_FUNCTION static uint32_t get() {
+            RT_DEVICE_FUNCTION static uint32_t get() {
                 if constexpr (index == 0)
                     return optixGetAttribute_0();
                 if constexpr (index == 1)
@@ -562,7 +376,7 @@ namespace optixu {
 
         struct ExceptionDetailFunc {
             template <uint32_t index>
-            CUDA_DEVICE_FUNCTION static uint32_t get() {
+            RT_DEVICE_FUNCTION static uint32_t get() {
                 if constexpr (index == 0)
                     return optixGetExceptionDetail_0();
                 if constexpr (index == 1)
@@ -583,19 +397,19 @@ namespace optixu {
             }
         };
     }
-    
+
     // JP: 右辺値参照でペイロードを受け取れば右辺値も受け取れて、かつ値の書き換えも反映できる。
     //     が、optixTraceに仕様をあわせることと、テンプレート引数の整合性チェックを簡単にするためただの参照で受け取る。
     // EN: Taking payloads as rvalue reference makes it possible to take rvalue while reflecting value changes.
     //     However take them as normal reference to ease consistency check of template arguments and for
     //     conforming optixTrace.
     template <typename... PayloadTypes>
-    CUDA_DEVICE_FUNCTION void trace(OptixTraversableHandle handle,
-                                    const float3 &origin, const float3 &direction,
-                                    float tmin, float tmax, float rayTime,
-                                    OptixVisibilityMask visibilityMask, uint32_t rayFlags,
-                                    uint32_t SBToffset, uint32_t SBTstride, uint32_t missSBTIndex,
-                                    PayloadTypes &... payloads) {
+    RT_DEVICE_FUNCTION void trace(OptixTraversableHandle handle,
+                                  const float3 &origin, const float3 &direction,
+                                  float tmin, float tmax, float rayTime,
+                                  OptixVisibilityMask visibilityMask, uint32_t rayFlags,
+                                  uint32_t SBToffset, uint32_t SBTstride, uint32_t missSBTIndex,
+                                  PayloadTypes &... payloads) {
         constexpr size_t numDwords = detail::calcSumDwords<PayloadTypes...>();
         static_assert(numDwords <= 8, "Maximum number of payloads is 8 dwords.");
 
@@ -636,7 +450,7 @@ namespace optixu {
 
 
     template <typename... PayloadTypes>
-    CUDA_DEVICE_FUNCTION void getPayloads(PayloadTypes*... payloads) {
+    RT_DEVICE_FUNCTION void getPayloads(PayloadTypes*... payloads) {
         constexpr size_t numDwords = detail::calcSumDwords<PayloadTypes...>();
         static_assert(numDwords <= 8, "Maximum number of payloads is 8 dwords.");
         static_assert(numDwords > 0, "Calling this function without payloads has no effect.");
@@ -645,7 +459,7 @@ namespace optixu {
     }
 
     template <typename... PayloadTypes>
-    CUDA_DEVICE_FUNCTION void setPayloads(const PayloadTypes*... payloads) {
+    RT_DEVICE_FUNCTION void setPayloads(const PayloadTypes*... payloads) {
         constexpr size_t numDwords = detail::calcSumDwords<PayloadTypes...>();
         static_assert(numDwords <= 8, "Maximum number of payloads is 8 dwords.");
         static_assert(numDwords > 0, "Calling this function without payloads has no effect.");
@@ -656,8 +470,8 @@ namespace optixu {
 
 
     template <typename... AttributeTypes>
-    CUDA_DEVICE_FUNCTION void reportIntersection(float hitT, uint32_t hitKind,
-                                                 const AttributeTypes &... attributes) {
+    RT_DEVICE_FUNCTION void reportIntersection(float hitT, uint32_t hitKind,
+                                               const AttributeTypes &... attributes) {
         constexpr size_t numDwords = detail::calcSumDwords<AttributeTypes...>();
         static_assert(numDwords <= 8, "Maximum number of attributes is 8 dwords.");
         if constexpr (numDwords == 0) {
@@ -685,9 +499,9 @@ namespace optixu {
                 optixReportIntersection(hitT, hitKind, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
         }
     }
-    
+
     template <typename... AttributeTypes>
-    CUDA_DEVICE_FUNCTION void getAttributes(AttributeTypes*... attributes) {
+    RT_DEVICE_FUNCTION void getAttributes(AttributeTypes*... attributes) {
         constexpr size_t numDwords = detail::calcSumDwords<AttributeTypes...>();
         static_assert(numDwords <= 8, "Maximum number of attributes is 8 dwords.");
         static_assert(numDwords > 0, "Calling this function without attributes has no effect.");
@@ -698,8 +512,8 @@ namespace optixu {
 
 
     template <typename... ExceptionDetailTypes>
-    CUDA_DEVICE_FUNCTION void throwException(int32_t exceptionCode,
-                                             const ExceptionDetailTypes &... exceptionDetails) {
+    RT_DEVICE_FUNCTION void throwException(int32_t exceptionCode,
+                                           const ExceptionDetailTypes &... exceptionDetails) {
         constexpr size_t numDwords = detail::calcSumDwords<ExceptionDetailTypes...>();
         static_assert(numDwords <= 8, "Maximum number of exception details is 8 dwords.");
         if constexpr (numDwords == 0) {
@@ -729,7 +543,7 @@ namespace optixu {
     }
 
     template <typename... ExceptionDetailTypes>
-    CUDA_DEVICE_FUNCTION void getExceptionDetails(ExceptionDetailTypes*... details) {
+    RT_DEVICE_FUNCTION void getExceptionDetails(ExceptionDetailTypes*... details) {
         constexpr size_t numDwords = detail::calcSumDwords<ExceptionDetailTypes...>();
         static_assert(numDwords <= 8, "Maximum number of exception details is 8 dwords.");
         static_assert(numDwords > 0, "Calling this function without exception details has no effect.");
@@ -745,7 +559,7 @@ namespace optixu {
 
     // ----------------------------------------------------------------
     // JP: ホスト側API
-    // EN: Host-side APIs.
+    // EN: Host-side API.
 #if !defined(__CUDA_ARCH__)
     /*
 
@@ -800,6 +614,29 @@ namespace optixu {
         Invalid
     };
 
+    class BufferView {
+        CUdeviceptr m_devicePtr;
+        size_t m_numElements;
+        uint32_t m_stride;
+
+    public:
+        BufferView() :
+            m_devicePtr(0),
+            m_numElements(0), m_stride(0) {}
+        BufferView(CUdeviceptr devicePtr, size_t numElements, uint32_t stride) :
+            m_devicePtr(devicePtr),
+            m_numElements(numElements), m_stride(stride) {}
+
+        CUdeviceptr getCUdeviceptr() const { return m_devicePtr; }
+        size_t numElements() const { return m_numElements; }
+        uint32_t stride() const { return m_stride; }
+        size_t sizeInBytes() const { return m_numElements * m_stride; }
+
+        bool isValid() const {
+            return m_devicePtr != 0;
+        }
+    };
+
 
 
 #define OPTIX_PIMPL() \
@@ -830,9 +667,13 @@ private: \
 
         CUcontext getCUcontext() const;
 
+        [[nodiscard]]
         Pipeline createPipeline() const;
+        [[nodiscard]]
         Material createMaterial() const;
+        [[nodiscard]]
         Scene createScene() const;
+        [[nodiscard]]
         Denoiser createDenoiser(OptixDenoiserInputKind inputKind) const;
     };
 
@@ -866,10 +707,15 @@ private: \
         void destroy();
         OPTIX_COMMON_FUNCTIONS(Scene);
 
+        [[nodiscard]]
         GeometryInstance createGeometryInstance(bool forCustomPrimitives = false) const;
+        [[nodiscard]]
         GeometryAccelerationStructure createGeometryAccelerationStructure(bool forCustomPrimitives = false) const;
+        [[nodiscard]]
         Transform createTransform() const;
+        [[nodiscard]]
         Instance createInstance() const;
+        [[nodiscard]]
         InstanceAccelerationStructure createInstanceAccelerationStructure() const;
 
         void generateShaderBindingTableLayout(size_t* memorySize) const;
@@ -889,14 +735,11 @@ private: \
         // EN: Calling markDirty() of a GAS to which the geometry instance belongs is
         //     required when calling the following APIs.
         //     (It is okay to use update instead of calling markDirty() when changing only vertex/AABB buffer.)
-        void setVertexBuffer(const Buffer* vertexBuffer, OptixVertexFormat format = OPTIX_VERTEX_FORMAT_FLOAT3,
-                             uint32_t offsetInBytes = 0, uint32_t numVertices = UINT32_MAX) const;
-        void setTriangleBuffer(const Buffer* triangleBuffer, OptixIndicesFormat format = OPTIX_INDICES_FORMAT_UNSIGNED_INT3,
-                               uint32_t offsetInBytes = 0, uint32_t numPrimitives = UINT32_MAX) const;
-        void setCustomPrimitiveAABBBuffer(const Buffer* primitiveAABBBuffer,
-                                          uint32_t offsetInBytes = 0, uint32_t numPrimitives = UINT32_MAX) const;
+        void setVertexBuffer(const BufferView &vertexBuffer, OptixVertexFormat format = OPTIX_VERTEX_FORMAT_FLOAT3) const;
+        void setTriangleBuffer(const BufferView &triangleBuffer, OptixIndicesFormat format = OPTIX_INDICES_FORMAT_UNSIGNED_INT3) const;
+        void setCustomPrimitiveAABBBuffer(const BufferView &primitiveAABBBuffer) const;
         void setPrimitiveIndexOffset(uint32_t offset) const;
-        void setNumMaterials(uint32_t numMaterials, const Buffer* matIndexOffsetBuffer, uint32_t indexOffsetSize = sizeof(uint32_t)) const;
+        void setNumMaterials(uint32_t numMaterials, const BufferView &matIndexOffsetBuffer, uint32_t indexOffsetSize = sizeof(uint32_t)) const;
         void setGeometryFlags(uint32_t matIdx, OptixGeometryFlags flags) const;
 
         // JP: 以下のAPIを呼んだ場合はシェーダーバインディングテーブルを更新する必要がある。
@@ -937,16 +780,20 @@ private: \
         // EN: Calling markDirty() of a traversable (e.g. IAS) to which this GAS (indirectly) belongs
         //     is required when performing rebuild / compact.
         void prepareForBuild(OptixAccelBufferSizes* memoryRequirement) const;
-        OptixTraversableHandle rebuild(CUstream stream, const Buffer &accelBuffer, const Buffer &scratchBuffer) const;
+        OptixTraversableHandle rebuild(CUstream stream, const BufferView &accelBuffer, const BufferView &scratchBuffer) const;
+        // JP: リビルドが完了するのをホスト側で待つ。
+        // EN: Wait on the host until rebuild operation finishes.
         void prepareForCompact(size_t* compactedAccelBufferSize) const;
-        OptixTraversableHandle compact(CUstream stream, const Buffer &compactedAccelBuffer) const;
+        OptixTraversableHandle compact(CUstream stream, const BufferView &compactedAccelBuffer) const;
+        // JP: コンパクトが完了するのをホスト側で待つ。
+        // EN: Wait on the host until compact operation finishes.
         void removeUncompacted() const;
 
         // JP: アップデートを行った場合はこのGASが(間接的に)所属するTraversable (例: IAS)
         //     もアップデートもしくはリビルドする必要がある。
         // EN: Updating or rebuilding a traversable (e.g. IAS) to which this GAS (indirectly) belongs
         //     is required when performing update.
-        void update(CUstream stream, const Buffer &scratchBuffer) const;
+        void update(CUstream stream, const BufferView &scratchBuffer) const;
 
         // JP: 以下のAPIを呼んだ場合はシェーダーバインディングテーブルを更新する必要がある。
         //     パイプラインのmarkHitGroupShaderBindingTableDirty()を呼べばローンチ時にセットアップされる。
@@ -987,7 +834,7 @@ private: \
         // JP: (間接的に)所属するTraversable (例: IAS)のmarkDirty()を呼ぶ必要がある。
         // EN: Calling markDirty() of a traversable (e.g. IAS) to which the transform
         //     (indirectly) belongs is required.
-        OptixTraversableHandle rebuild(CUstream stream, const Buffer &trDeviceMem);
+        OptixTraversableHandle rebuild(CUstream stream, const BufferView &trDeviceMem);
 
         bool isReady() const;
         OptixTraversableHandle getHandle() const;
@@ -1046,19 +893,23 @@ private: \
         //     is required when performing rebuild / compact.
         void prepareForBuild(OptixAccelBufferSizes* memoryRequirement, uint32_t* numInstances,
                              uint32_t* numAABBs = nullptr) const;
-        OptixTraversableHandle rebuild(CUstream stream, const TypedBuffer<OptixInstance> &instanceBuffer,
-                                       const Buffer &accelBuffer, const Buffer &scratchBuffer) const;
-        OptixTraversableHandle rebuild(CUstream stream, const TypedBuffer<OptixInstance> &instanceBuffer, const TypedBuffer<OptixAabb> &aabbBuffer,
-                                       const Buffer &accelBuffer, const Buffer &scratchBuffer) const;
+        OptixTraversableHandle rebuild(CUstream stream, const BufferView &instanceBuffer,
+                                       const BufferView &accelBuffer, const BufferView &scratchBuffer) const;
+        OptixTraversableHandle rebuild(CUstream stream, const BufferView &instanceBuffer, const BufferView &aabbBuffer,
+                                       const BufferView &accelBuffer, const BufferView &scratchBuffer) const;
+        // JP: リビルドが完了するのをホスト側で待つ。
+        // EN: Wait on the host until rebuild operation finishes.
         void prepareForCompact(size_t* compactedAccelBufferSize) const;
-        OptixTraversableHandle compact(CUstream stream, const Buffer &compactedAccelBuffer) const;
+        OptixTraversableHandle compact(CUstream stream, const BufferView &compactedAccelBuffer) const;
+        // JP: コンパクトが完了するのをホスト側で待つ。
+        // EN: Wait on the host until compact operation finishes.
         void removeUncompacted() const;
 
         // JP: アップデートを行った場合はこのIASが(間接的に)所属するTraversable (例: IAS)
         //     もアップデートもしくはリビルドする必要がある。
         // EN: Updating or rebuilding a traversable (e.g. IAS) to which this IAS (indirectly) belongs
         //     is required when performing update.
-        void update(CUstream stream, const Buffer &scratchBuffer) const;
+        void update(CUstream stream, const BufferView &scratchBuffer) const;
 
         bool isReady() const;
         OptixTraversableHandle getHandle() const;
@@ -1078,15 +929,21 @@ private: \
                                 bool useMotionBlur, uint32_t traversableGraphFlags, uint32_t exceptionFlags,
                                 uint32_t supportedPrimitiveTypeFlags) const;
 
+        [[nodiscard]]
         Module createModuleFromPTXString(const std::string &ptxString, int32_t maxRegisterCount,
                                          OptixCompileOptimizationLevel optLevel, OptixCompileDebugLevel debugLevel) const;
 
+        [[nodiscard]]
         ProgramGroup createRayGenProgram(Module module, const char* entryFunctionName) const;
+        [[nodiscard]]
         ProgramGroup createExceptionProgram(Module module, const char* entryFunctionName) const;
+        [[nodiscard]]
         ProgramGroup createMissProgram(Module module, const char* entryFunctionName) const;
+        [[nodiscard]]
         ProgramGroup createHitProgramGroup(Module module_CH, const char* entryFunctionNameCH,
                                            Module module_AH, const char* entryFunctionNameAH,
                                            Module module_IS, const char* entryFunctionNameIS) const;
+        [[nodiscard]]
         ProgramGroup createCallableProgramGroup(Module module_DC, const char* entryFunctionNameDC,
                                                 Module module_CC, const char* entryFunctionNameCC) const;
 
@@ -1112,7 +969,7 @@ private: \
         void setExceptionProgram(ProgramGroup program) const;
         void setMissProgram(uint32_t rayType, ProgramGroup program) const;
         void setCallableProgram(uint32_t index, ProgramGroup program) const;
-        void setShaderBindingTable(Buffer* shaderBindingTable) const;
+        void setShaderBindingTable(const BufferView &shaderBindingTable, void* hostMem) const;
 
         // JP: 以下のAPIを呼んだ場合はヒットグループのシェーダーバインディングテーブルがdirty状態になり
         //     ローンチ時に再セットアップされる。
@@ -1124,7 +981,7 @@ private: \
         //     and transfer, so double buffered SBT is required for safety
         //     in the case performing asynchronous update.
         void setScene(const Scene &scene) const;
-        void setHitGroupShaderBindingTable(Buffer* shaderBindingTable) const;
+        void setHitGroupShaderBindingTable(const BufferView &shaderBindingTable, void* hostMem) const;
         void markHitGroupShaderBindingTableDirty() const;
 
         void setStackSize(uint32_t directCallableStackSizeFromTraversal,
@@ -1181,11 +1038,11 @@ private: \
                      size_t* stateBufferSize, size_t* scratchBufferSize, size_t* scratchBufferSizeForComputeIntensity,
                      uint32_t* numTasks) const;
         void getTasks(DenoisingTask* tasks) const;
-        void setLayers(const Buffer* color, const Buffer* albedo, const Buffer* normal, const Buffer* denoisedColor,
+        void setLayers(const BufferView &color, const BufferView &albedo, const BufferView &normal, const BufferView &denoisedColor,
                        OptixPixelFormat colorFormat, OptixPixelFormat albedoFormat, OptixPixelFormat normalFormat) const;
-        void setupState(CUstream stream, const Buffer &stateBuffer, const Buffer &scratchBuffer) const;
+        void setupState(CUstream stream, const BufferView &stateBuffer, const BufferView &scratchBuffer) const;
 
-        void computeIntensity(CUstream stream, const Buffer &scratchBuffer, CUdeviceptr outputIntensity);
+        void computeIntensity(CUstream stream, const BufferView &scratchBuffer, CUdeviceptr outputIntensity);
         void invoke(CUstream stream, bool denoiseAlpha, CUdeviceptr hdrIntensity, float blendFactor,
                     const DenoisingTask &task);
     };
@@ -1196,6 +1053,6 @@ private: \
 #undef OPTIX_PIMPL
 
 #endif // #if !defined(__CUDA_ARCH__)
-    // END: Host-side APIs.
+    // END: Host-side API.
     // ----------------------------------------------------------------
 } // namespace optixu
