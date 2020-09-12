@@ -76,7 +76,7 @@ void CudaCompiler::compile(const PropertyService& properties)
 		File f(path);
 
 		Time lastModified = f.getLastModificationTime();
-		
+
 		auto it = fileInfo.find(path);
 		if (it == fileInfo.end())
 		{
@@ -101,6 +101,10 @@ void CudaCompiler::compile(const PropertyService& properties)
 		args.add(exe);
 		args.add(f.getFullPathName());
 		//args.add("--verbose");
+#ifndef NDEBUG
+		args.add("--debug");
+		args.add("--device-debug");
+#endif
 		args.add("--ptx");
 		args.add("--cudart");
 		args.add("shared");
